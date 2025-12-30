@@ -18,6 +18,7 @@ class TranslationViewModel: ObservableObject {
     // MARK: - Published Properties
     @Published var inputText = ""
     @Published var translatedText = ""
+    @Published var currentSourceText = "" // 新增：用于显示在卡片上的原文（只有翻译成功后才更新）
     @Published var currentMode: InputMode = .text
     @Published var isTranslating = false
     @Published var errorMessage: String?
@@ -26,11 +27,19 @@ class TranslationViewModel: ObservableObject {
     @Published var selectedImage: PhotosPickerItem?
     @Published var showCamera = false
     
+    // MARK: - Persistence
+    private let historyKey = "translationHistory"
+    
     // MARK: - Services
     private let translationService = TranslationService()
     let ttsService = TTSService()
     let speechService = SpeechService()
     let ocrService = OCRService()
+    
+    // MARK: - Initialization
+    init() {
+        loadHistory()
+    }
     
     // MARK: - Translation Methods
     
@@ -47,6 +56,7 @@ class TranslationViewModel: ObservableObject {
         do {
             let result = try await translationService.translate(inputText)
             translatedText = result
+            currentSourceText = inputText // 更新当前显示的原文
             
             // 添加到历史记录
             let record = TranslationResult(sourceText: inputText, translatedText: result)
@@ -56,6 +66,9 @@ class TranslationViewModel: ObservableObject {
             if history.count > 50 {
                 history.removeLast()
             }
+            
+            // 保存到本地
+            saveHistory()
             
         } catch {
             showError(message: error.localizedDescription)
@@ -68,6 +81,7 @@ class TranslationViewModel: ObservableObject {
     func clear() {
         inputText = ""
         translatedText = ""
+        currentSourceText = ""
         errorMessage = nil
     }
     
@@ -168,6 +182,26 @@ class TranslationViewModel: ObservableObject {
         }
         if ttsService.isSpeaking {
             ttsService.stop()
+        }
+    }
+    
+    // MARK: - Persistence Implementation
+    
+    private func saveHistory() {
+        do {
+            let data = try JSONEncoder().encode(history)
+            UserDefaults.standard.set(data, forKey: historyKey)
+        } catch {
+            print("❌ 保存历史记录失败: \(error)")
+        }
+    }
+    
+    private func loadHistory() {
+        guard let data = UserDefaults.standard.data(forKey: historyKey) else { return }
+        do {
+            history = try JSONDecoder().decode([TranslationResult].self, from: data)
+        } catch {
+            print("❌ 加载历史记录失败: \(error)")
         }
     }
 }
