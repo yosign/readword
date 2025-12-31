@@ -2,8 +2,6 @@
 //  TranslationViewModel.swift
 //  ReadWord
 //
-//  主视图模型 - 协调各个服务
-//
 
 import Foundation
 import SwiftUI
@@ -11,146 +9,134 @@ import PhotosUI
 import Combine
 import Speech
 
-/// 翻译视图模型
 @MainActor
 class TranslationViewModel: ObservableObject {
     
-    // MARK: - Published Properties
     @Published var inputText = ""
     @Published var translatedText = ""
-    @Published var currentSourceText = "" // 新增：用于显示在卡片上的原文（只有翻译成功后才更新）
+    @Published var currentSourceText = ""
     @Published var currentMode: InputMode = .text
     @Published var isTranslating = false
+    @Published var translationProgress: Double = 0.0 // 新增：进度条百分比 (0.0 - 1.0)
     @Published var errorMessage: String?
     @Published var showError = false
     @Published var history: [TranslationResult] = []
     @Published var selectedImage: PhotosPickerItem?
     @Published var showCamera = false
     
-    // MARK: - Persistence
     private let historyKey = "translationHistory"
-    
-    // MARK: - Services
     private let translationService = TranslationService()
     let ttsService = TTSService()
     let speechService = SpeechService()
     let ocrService = OCRService()
     
-    // MARK: - Initialization
     init() {
         loadHistory()
     }
     
-    // MARK: - Translation Methods
-    
-    /// 执行翻译
     func translate() async {
-        guard !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            showError(message: "请输入要翻译的文字")
+        guard !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        
+        let cleanedInput = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // 🔍 先检查缓存：查找历史记录中是否有相同的词
+        if let cachedRecord = history.first(where: { $0.sourceText == cleanedInput }) {
+            print("💾 使用缓存数据: \(cachedRecord.translatedText)")
+            
+            // 使用缓存数据，无需请求接口
+            isTranslating = true
+            translationProgress = 0.0
+            
+            // 快速进度动画
+            withAnimation(.easeOut(duration: 0.3)) { translationProgress = 1.0 }
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            
+            self.translatedText = cachedRecord.translatedText
+            self.currentSourceText = cleanedInput
+            
+            // 预热语音引擎
+            ttsService.prewarm(cachedRecord.translatedText)
+            
+            // 将该记录移到最前面（更新使用时间）
+            if let index = history.firstIndex(where: { $0.id == cachedRecord.id }) {
+                history.remove(at: index)
+                history.insert(cachedRecord, at: 0)
+                saveHistory()
+            }
+            
+            isTranslating = false
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            translationProgress = 0.0
             return
         }
         
+        // 📡 缓存未命中，请求接口
         isTranslating = true
+        translationProgress = 0.0
         errorMessage = nil
         
+        // 开启仿真进度计时任务
+        let progressTask = Task {
+            // 前 0.5 秒冲到 40%
+            withAnimation(.easeOut(duration: 0.5)) { translationProgress = 0.4 }
+            if Task.isCancelled { return }
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            
+            // 接下来 2 秒慢速涨到 90%
+            if Task.isCancelled { return }
+            withAnimation(.linear(duration: 2.0)) { translationProgress = 0.9 }
+        }
+        
+        print("\n🚀🚀🚀 >>> 开始翻译流程: \(cleanedInput) <<< 🚀🚀🚀\n")
+        
         do {
-            let result = try await translationService.translate(inputText)
-            translatedText = result
-            currentSourceText = inputText // 更新当前显示的原文
+            let record = try await translationService.translateFull(cleanedInput)
             
-            // 添加到历史记录
-            let record = TranslationResult(sourceText: inputText, translatedText: result)
+            // 接口返回，进度冲刺到 100%
+            progressTask.cancel()
+            withAnimation(.spring(response: 0.3)) { translationProgress = 1.0 }
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            
+            print("✅ 成功获取记录: \(record.translatedText)")
+            
+            self.translatedText = record.translatedText
+            self.currentSourceText = cleanedInput
+            
+            // 核心优化：翻译成功后立即预热语音引擎
+            ttsService.prewarm(record.translatedText)
+            
             history.insert(record, at: 0)
-            
-            // 限制历史记录数量
-            if history.count > 50 {
-                history.removeLast()
-            }
-            
-            // 保存到本地
+            if history.count > 50 { history.removeLast() }
             saveHistory()
             
         } catch {
-            showError(message: error.localizedDescription)
+            progressTask.cancel()
+            print("❌ 翻译流程彻底失败: \(error.localizedDescription)")
+            errorMessage = "翻译失败: \(error.localizedDescription)"
+            showError = true
         }
         
         isTranslating = false
+        // 延迟清空进度，让用户看到 100% 的完成感
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        translationProgress = 0.0
     }
     
-    /// 清空输入和结果
-    func clear() {
-        inputText = ""
-        translatedText = ""
-        currentSourceText = ""
-        errorMessage = nil
-    }
-    
-    /// 朗读翻译结果
-    func speakTranslation() {
-        guard !translatedText.isEmpty else {
-            showError(message: "没有可朗读的内容")
-            return
-        }
-        
-        ttsService.speak(translatedText)
-    }
-    
-    // MARK: - Voice Input Methods
-    
-    /// 开始语音识别
-    func startVoiceRecognition() async {
-        // 检查权限
-        if speechService.authorizationStatus == .notDetermined {
-            let granted = await speechService.requestAuthorization()
-            if !granted {
-                showError(message: "需要语音识别权限")
-                return
-            }
-        }
-        
-        guard speechService.authorizationStatus == .authorized else {
-            showError(message: "未授权语音识别权限，请在设置中开启")
-            return
-        }
-        
-        // 开始录音
-        do {
-            try speechService.startRecording()
-        } catch {
-            showError(message: error.localizedDescription)
-        }
-    }
-    
-    /// 停止语音识别
-    func stopVoiceRecognition() {
-        speechService.stopRecording()
-        
-        // 将识别的文字填入输入框
-        if !speechService.recognizedText.isEmpty {
-            inputText = speechService.recognizedText
-        }
-    }
-    
-    // MARK: - Camera/Photo Methods
+    // MARK: - OCR Methods (补全缺失的方法)
     
     /// 处理选中的图片
     func processSelectedImage() async {
         guard let selectedImage = selectedImage else { return }
         
         do {
-            // 加载图片数据
-            guard let imageData = try await selectedImage.loadTransferable(type: Data.self),
-                  let uiImage = UIImage(data: imageData) else {
-                showError(message: "无法加载图片")
-                return
+            if let imageData = try await selectedImage.loadTransferable(type: Data.self),
+               let uiImage = UIImage(data: imageData) {
+                let recognizedText = try await ocrService.recognizeText(from: uiImage)
+                self.inputText = recognizedText
+                await translate() // 识别后自动翻译
             }
-            
-            // 执行OCR识别
-            let recognizedText = try await ocrService.recognizeText(from: uiImage)
-            inputText = recognizedText
-            
         } catch {
-            showError(message: "图片识别失败: \(error.localizedDescription)")
+            print("❌ 图片识别失败: \(error.localizedDescription)")
         }
     }
     
@@ -158,41 +144,26 @@ class TranslationViewModel: ObservableObject {
     func processCameraImage(_ image: UIImage) async {
         do {
             let recognizedText = try await ocrService.recognizeText(from: image)
-            inputText = recognizedText
+            self.inputText = recognizedText
+            await translate() // 识别后自动翻译
         } catch {
-            showError(message: "图片识别失败: \(error.localizedDescription)")
+            print("❌ 相机识别失败: \(error.localizedDescription)")
         }
     }
     
-    // MARK: - Helper Methods
-    
-    /// 显示错误信息
-    private func showError(message: String) {
-        errorMessage = message
-        showError = true
+    func speakTranslation() {
+        guard !translatedText.isEmpty else { return }
+        ttsService.speak(translatedText)
     }
     
-    /// 切换输入模式
-    func switchMode(to mode: InputMode) {
-        currentMode = mode
-        
-        // 切换模式时停止当前操作
-        if speechService.isRecording {
-            speechService.stopRecording()
-        }
-        if ttsService.isSpeaking {
-            ttsService.stop()
-        }
-    }
-    
-    // MARK: - Persistence Implementation
+    // MARK: - Persistence
     
     private func saveHistory() {
         do {
             let data = try JSONEncoder().encode(history)
             UserDefaults.standard.set(data, forKey: historyKey)
         } catch {
-            print("❌ 保存历史记录失败: \(error)")
+            print("❌ 保存失败")
         }
     }
     
@@ -201,8 +172,14 @@ class TranslationViewModel: ObservableObject {
         do {
             history = try JSONDecoder().decode([TranslationResult].self, from: data)
         } catch {
-            print("❌ 加载历史记录失败: \(error)")
+            print("❌ 加载失败，清除旧数据")
+            UserDefaults.standard.removeObject(forKey: historyKey)
         }
     }
+    
+    func clear() {
+        inputText = ""
+        translatedText = ""
+        currentSourceText = ""
+    }
 }
-

@@ -9,14 +9,32 @@ import Foundation
 
 /// 翻译结果
 struct TranslationResult: Identifiable, Codable {
-    var id = UUID() // 必须改为 var 并且 Codable 才能自动处理，或者手动实现。通常 Codable 对 UUID 支持良好。
-    let sourceText: String          // 原文（中文）
-    let translatedText: String      // 译文（英文）
+    var id = UUID()
+    let sourceText: String          // 原文（用户输入）
+    let translatedText: String      // 英文单词
+    let chineseTranslation: String? // 中文翻译（新增）
     let timestamp: Date             // 翻译时间
     
-    init(sourceText: String, translatedText: String) {
+    // 新增：Dify API 扩展字段
+    let emoji: String?              // Emoji 图标
+    let exampleSentence: String?    // 例句
+    let ipa: String?                // 音标 (IPA)
+    let pronunciationHint: String?  // 发音提示
+    
+    init(sourceText: String, 
+         translatedText: String,
+         chineseTranslation: String? = nil,
+         emoji: String? = nil,
+         exampleSentence: String? = nil,
+         ipa: String? = nil,
+         pronunciationHint: String? = nil) {
         self.sourceText = sourceText
         self.translatedText = translatedText
+        self.chineseTranslation = chineseTranslation
+        self.emoji = emoji
+        self.exampleSentence = exampleSentence
+        self.ipa = ipa
+        self.pronunciationHint = pronunciationHint
         self.timestamp = Date()
     }
 }

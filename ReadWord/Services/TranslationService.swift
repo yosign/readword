@@ -13,9 +13,57 @@ import NaturalLanguage
 @MainActor
 class TranslationService: ObservableObject {
     
-    /// 翻译中文到英文
-    /// - Parameter text: 中文文本
-    /// - Returns: 英文翻译结果
+    // MARK: - Dify API Models
+    
+    struct DifyWrapper: Codable {
+        let text: String?
+        let data: DifyData?
+    }
+    
+    struct DifyData: Codable {
+        let outputs: DifyOutputs?
+    }
+    
+    struct DifyOutputs: Codable {
+        let text: String?     // 真正的 JSON 字符串在这里
+        let word: String?     // 兼容直模式
+        let emoji: String?
+        let cn: String?
+        let sentence: String?
+        let pronunciation: PronunciationData?
+    }
+    
+    struct TranslationData: Codable {
+        let word: String?
+        let emoji: String?
+        let cn: String?
+        let sentence: String?
+        let pronunciation: PronunciationData?
+    }
+    
+    struct PronunciationData: Codable {
+        let ipa: String?
+        let hint: String?
+    }
+    
+    /// 翻译中文到英文（增强版，返回完整数据）
+    func translateFull(_ text: String) async throws -> TranslationResult {
+        guard !text.isEmpty else {
+            throw TranslationError.emptyText
+        }
+        
+        print("📡 [DEBUG] 正在请求 Dify API...")
+        
+        do {
+            let result = try await translateWithDify(text)
+            return result
+        } catch {
+            print("❌ [DEBUG] Dify API 彻底失败: \(error.localizedDescription)")
+            throw error
+        }
+    }
+    
+    /// 翻译中文到英文（兼容旧版本）
     func translate(_ text: String) async throws -> String {
         guard !text.isEmpty else {
             throw TranslationError.emptyText
@@ -39,47 +87,203 @@ class TranslationService: ObservableObject {
         }
     }
     
+    /// 使用 Dify AI API（最优先方案）
+    private func translateWithDify(_ text: String) async throws -> TranslationResult {
+        let maxRetries = 3
+        var lastError: Error?
+        
+        for attempt in 1...maxRetries {
+            do {
+                if attempt > 1 {
+                    let delay = UInt64(pow(2.0, Double(attempt - 2))) * 1_000_000_000
+                    print("🔄 [DEBUG] Dify 重试第 \(attempt) 次，等待 \(pow(2.0, Double(attempt - 2))) 秒...")
+                    try await Task.sleep(nanoseconds: delay)
+                }
+                
+                return try await performDifyRequest(text)
+            } catch {
+                lastError = error
+                let nsError = error as NSError
+                
+                // 只有特定错误才重试：网络断开(-1005)、超时(-1001)、503错误
+                let retryableCodes = [-1005, -1001, -1003, -1009]
+                let isRetryable = retryableCodes.contains(nsError.code) || nsError.localizedDescription.contains("503")
+                
+                if isRetryable && attempt < maxRetries {
+                    print("⚠️ [DEBUG] 第 \(attempt) 次尝试失败（\(nsError.code)），准备重试...")
+                    continue
+                }
+                break // 不可重试或达到上限，直接跳出
+            }
+        }
+        throw lastError ?? TranslationError.networkError
+    }
+    
+    /// 实际执行 Dify 网络请求的方法
+    private func performDifyRequest(_ text: String) async throws -> TranslationResult {
+        let urlString = "https://api.dify.ai/v1/workflows/run"
+        
+        guard let url = URL(string: urlString) else {
+            throw TranslationError.networkError
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 20.0 // 稍微增加超时到 20 秒
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer app-CUISU4O47Vp1ZPn5Odkxgnwi", forHTTPHeaderField: "Authorization")
+        
+        let requestBody: [String: Any] = [
+            "inputs": ["word": text],
+            "response_mode": "blocking",
+            "user": "readword-app"
+        ]
+        
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw TranslationError.networkError
+        }
+        
+        print("📡 Dify API 状态码: \(httpResponse.statusCode)")
+        
+        if httpResponse.statusCode == 503 {
+            throw NSError(domain: "DifyError", code: 503, userInfo: [NSLocalizedDescriptionKey: "Server 503"])
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            throw TranslationError.networkError
+        }
+        
+        do {
+            let wrapper = try JSONDecoder().decode(DifyWrapper.self, from: data)
+            
+            // 策略 1: 检查 data.outputs.text (你提供的日志正是这种)
+            if let jsonString = wrapper.data?.outputs?.text, !jsonString.isEmpty {
+                if let result = tryParseNestedJson(jsonString, original: text) {
+                    print("✅ Dify 解析成功: Data.Outputs.Text 深度包装模式")
+                    return result
+                }
+            }
+            
+            // 策略 2: 检查根部的 text (兼容模式)
+            if let jsonString = wrapper.text, !jsonString.isEmpty {
+                if let result = tryParseNestedJson(jsonString, original: text) {
+                    print("✅ Dify 解析成功: Root.Text 包装模式")
+                    return result
+                }
+            }
+            
+            // 策略 3: 检查 data.outputs 直接包含字段 (直出模式)
+            if let outputs = wrapper.data?.outputs, outputs.word != nil {
+                print("✅ Dify 解析成功: Data.Outputs 直出模式")
+                return createResultFromOutputs(outputs, original: text)
+            }
+            
+            throw TranslationError.unknownError
+        } catch {
+            print("❌ Dify 解析彻底失败: \(error.localizedDescription)")
+            throw error
+        }
+    }
+    
+    // 辅助解析内层 JSON
+    private func tryParseNestedJson(_ jsonString: String, original: String) -> TranslationResult? {
+        var cleanedJson = jsonString.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleanedJson.hasPrefix("```") {
+            cleanedJson = cleanedJson.components(separatedBy: "\n")
+                .filter { !$0.hasPrefix("```") }
+                .joined(separator: "\n")
+        }
+        
+        guard let innerData = cleanedJson.data(using: .utf8),
+              let translationData = try? JSONDecoder().decode(TranslationData.self, from: innerData) else {
+            return nil
+        }
+        
+        return createResult(from: translationData, original: original)
+    }
+    
+    // 辅助转换 Outputs 到 Result
+    private func createResultFromOutputs(_ outputs: DifyOutputs, original: String) -> TranslationResult {
+        return TranslationResult(
+            sourceText: original,
+            translatedText: outputs.word ?? original,
+            chineseTranslation: outputs.cn,
+            emoji: outputs.emoji,
+            exampleSentence: outputs.sentence,
+            ipa: outputs.pronunciation?.ipa,
+            pronunciationHint: outputs.pronunciation?.hint
+        )
+    }
+    
+    // 辅助方法：构建结果对象
+    private func createResult(from data: TranslationData, original: String) -> TranslationResult {
+        return TranslationResult(
+            sourceText: original,
+            translatedText: data.word ?? original,
+            chineseTranslation: data.cn,
+            emoji: data.emoji,
+            exampleSentence: data.sentence,
+            ipa: data.pronunciation?.ipa,
+            pronunciationHint: data.pronunciation?.hint
+        )
+    }
+    
     /// 使用在线翻译 API（多个接口自动切换，带重试机制）
     private func translateWithOnlineAPI(_ text: String) async throws -> String {
         let maxRetries = 3
         var lastError: Error?
         
-        // 尝试重试 3 次
+        // 尝试重试 3 次（指数退避策略）
         for attempt in 1...maxRetries {
             do {
                 if attempt > 1 {
-                    print("🔄 在线翻译重试第 \(attempt) 次...")
-                    // 重试前稍微等待一下，避免频繁请求
-                    try await Task.sleep(nanoseconds: 500_000_000) // 0.5秒
+                    // 指数退避：第1次重试等1秒，第2次等2秒，第3次等3秒
+                    let waitTime = UInt64(attempt - 1) * 1_000_000_000 // 转换为纳秒
+                    print("🔄 在线翻译重试第 \(attempt) 次（等待 \(attempt - 1) 秒）...")
+                    try await Task.sleep(nanoseconds: waitTime)
                 }
                 
                 // 尝试方案1：百度翻译建议接口
                 do {
-                    return try await translateWithBaidu(text)
-                } catch {
-                    print("⚠️ 百度翻译失败 (Attempt \(attempt)): \(error)")
+                    let result = try await translateWithBaidu(text)
+                    print("✅ 百度翻译成功 (Attempt \(attempt))")
+                    return result
+                } catch let baiduError {
+                    print("⚠️ 百度翻译失败 (Attempt \(attempt)): \(baiduError.localizedDescription)")
+                    lastError = baiduError
+                    
+                    // 短暂等待后尝试备用接口
+                    try? await Task.sleep(nanoseconds: 300_000_000) // 0.3秒
                 }
                 
                 // 尝试方案2：有道翻译
                 do {
-                    return try await translateWithYoudao(text)
-                } catch {
-                    print("⚠️ 有道翻译失败 (Attempt \(attempt)): \(error)")
-                    lastError = error
+                    let result = try await translateWithYoudao(text)
+                    print("✅ 有道翻译成功 (Attempt \(attempt))")
+                    return result
+                } catch let youdaoError {
+                    print("⚠️ 有道翻译失败 (Attempt \(attempt)): \(youdaoError.localizedDescription)")
+                    lastError = youdaoError
                 }
                 
-                // 如果两次都失败，继续下一次循环重试
+                // 两个接口都失败，如果还有重试次数，继续下一轮
+                if attempt < maxRetries {
+                    print("⚠️ 第 \(attempt) 次尝试失败，准备重试...")
+                }
                 
             } catch {
                 lastError = error
+                print("❌ 意外错误: \(error.localizedDescription)")
             }
         }
         
-        if let error = lastError {
-            throw error
-        }
-        
-        throw TranslationError.networkError
+        // 所有重试都失败
+        print("❌ 所有翻译尝试均失败（共 \(maxRetries) 次）")
+        throw lastError ?? TranslationError.networkError
     }
     
     /// 百度翻译建议接口
@@ -92,7 +296,7 @@ class TranslationService: ObservableObject {
         }
         
         var request = URLRequest(url: url)
-        request.timeoutInterval = 5.0
+        request.timeoutInterval = 10.0 // 增加到10秒
         
         let (data, response) = try await URLSession.shared.data(for: request)
         
@@ -127,7 +331,7 @@ class TranslationService: ObservableObject {
         }
         
         var request = URLRequest(url: url)
-        request.timeoutInterval = 5.0
+        request.timeoutInterval = 10.0 // 增加到10秒
         
         let (data, _) = try await URLSession.shared.data(for: request)
         
@@ -383,7 +587,6 @@ class TranslationService: ObservableObject {
             "咖啡": "Coffee",
             "鸡蛋": "Egg",
             "肉": "Meat",
-            "鱼": "Fish",
             "蔬菜": "Vegetable",
             "水果": "Fruit",
             "香蕉": "Banana",

@@ -2,139 +2,223 @@
 //  ContentView.swift
 //  ReadWord
 //
-//  主界面 - 沉浸式深色 3D 卡片风格 + 陀螺仪视差
+//  主界面 - 极简清爽风格
 //
 
 import SwiftUI
 import PhotosUI
-import CoreMotion
-import Combine
 
-// MARK: - 主视图
+// MARK: - 主视图（极简清爽风格）
 
 struct ContentView: View {
     @StateObject private var viewModel = TranslationViewModel()
-    @StateObject private var motionManager = MotionManager()
     @FocusState private var isInputFocused: Bool
-    
-    // 控制轮播当前页码
-    @State private var currentCardID: String?
+    @State private var currentCardIndex: Int = 0
     
     var body: some View {
         ZStack {
-            // 1. 全局深色背景
-            Color.black.ignoresSafeArea()
-            
-            // 背景光晕
-            ZStack {
-                Circle()
-                    .fill(Color.green.opacity(0.15))
-                    .frame(width: 300, height: 300)
-                    .blur(radius: 60)
-                    .offset(x: -100 + (isInputFocused ? 0 : motionManager.roll * 20),
-                            y: -200 + (isInputFocused ? 0 : motionManager.pitch * 20))
-                
-                Circle()
-                    .fill(Color.blue.opacity(0.15))
-                    .frame(width: 300, height: 300)
-                    .blur(radius: 60)
-                    .offset(x: 100 + (isInputFocused ? 0 : motionManager.roll * 20),
-                            y: 200 + (isInputFocused ? 0 : motionManager.pitch * 20))
-            }
-            .ignoresSafeArea()
-            .animation(.interactiveSpring, value: motionManager.roll)
+            // 1. 纯白背景
+            Color.white
+                .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // 2. 顶部 Logo (键盘弹起时隐藏)
-                if !isInputFocused {
-                    Image(systemName: "asterisk")
-                        .font(.system(size: 40, weight: .light))
-                        .foregroundStyle(.white)
-                        .rotationEffect(.degrees(isInputFocused ? 90 : 0))
-                        .padding(.top, 20)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-                
                 Spacer()
                 
-                // 3. 3D 卡片轮播区域
-                GeometryReader { geometry in
-                    let size = geometry.size
-                    let items = buildCarouselItems()
-                    
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        // 修复2：改用 HStack 替代 LazyHStack，解决数据错乱和复用问题
-                        HStack(spacing: 0) {
-                            ForEach(items) { item in
-                                CarouselCard(
-                                    item: item,
-                                    viewModel: viewModel,
-                                    motionManager: motionManager,
-                                    isInputFocused: isInputFocused, // 传入焦点状态
-                                    // 动态调整卡片尺寸，输入时更小
-                                    cardWidth: isInputFocused ? size.width * 0.5 : size.width * 0.75,
-                                    cardHeight: size.height * 0.9
+                // 2. 主内容区域
+                VStack(spacing: 24) {
+                    // 顶部大 Emoji 插图 + 卡片轮播
+                    if viewModel.translatedText.isEmpty {
+                        // 空状态：显示学习小鸟
+                        Text("🐤")
+                            .font(.system(size: 140))
+                            .padding(.bottom, 20)
+                    } else {
+                        // 有结果：横滑卡片轮播
+                        let cards = buildCards()
+                        TabView(selection: $currentCardIndex) {
+                            ForEach(Array(cards.enumerated()), id: \.offset) { index, card in
+                                TranslationCard(
+                                    chineseText: card.chineseText,
+                                    englishText: card.englishText,
+                                    emoji: card.emoji,
+                                    ipa: card.ipa,
+                                    pronunciationHint: card.pronunciationHint,
+                                    exampleSentence: card.exampleSentence,
+                                    onPlayTap: {
+                                        viewModel.ttsService.speak(card.englishText)
+                                    },
+                                    onSentenceTap: {
+                                        viewModel.ttsService.speak(card.exampleSentence)
+                                    },
+                                    isSpeaking: viewModel.ttsService.isSpeaking,
+                                    isInputFocused: isInputFocused
                                 )
-                                .frame(width: size.width, height: size.height)
-                                .id(item.id)
+                                .tag(index)
                             }
                         }
-                        .scrollTargetLayout()
-                    }
-                    .scrollTargetBehavior(.paging)
-                    .scrollPosition(id: $currentCardID)
-                    .onChange(of: currentCardID) { _, _ in
-                        let generator = UIImpactFeedbackGenerator(style: .light)
-                        generator.impactOccurred()
-                    }
-                    .onAppear {
-                        if currentCardID == nil, let first = items.first {
-                            currentCardID = first.id
+                        .tabViewStyle(.page(indexDisplayMode: .never))
+                        .frame(height: isInputFocused ? 280 : 480) // 键盘弹出时缩小卡片高度
+                        .animation(.easeInOut(duration: 0.25), value: isInputFocused)
+                        .onChange(of: viewModel.translatedText) { _, newValue in
+                            // 翻译完成后自动滑动到最新的词（第一个位置）
+                            if !newValue.isEmpty {
+                                withAnimation {
+                                    currentCardIndex = 0
+                                }
+                            }
+                        }
+                        
+                        // 页面指示器 - 键盘弹出时隐藏
+                        if cards.count > 1 && !isInputFocused {
+                            HStack(spacing: 8) {
+                                ForEach(0..<cards.count, id: \.self) { index in
+                                    Circle()
+                                        .fill(currentCardIndex == index ? Color.orange : Color.gray.opacity(0.3))
+                                        .frame(width: 8, height: 8)
+                                }
+                            }
+                            .padding(.top, -10)
                         }
                     }
-                }
-                // 修复1：键盘弹起时，高度调整 (520 -> 240)，确保不被切割
-                .frame(height: isInputFocused ? 240 : 520)
-                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isInputFocused)
-                
-                // 4. 卡片进度指示器 (键盘弹起时隐藏)
-                if !isInputFocused {
-                    PageIndicator(
-                        currentID: currentCardID,
-                        items: buildCarouselItems()
-                    )
-                    .padding(.vertical, 20)
-                    .transition(.opacity)
+                    
+                    // 空状态文案
+                    if viewModel.translatedText.isEmpty {
+                        VStack(spacing: 8) {
+                            Text("Ready to Learn?")
+                                .font(.system(size: 28, weight: .bold))
+                                .foregroundStyle(.black)
+                            
+                            Text("Type a Chinese word below")
+                                .font(.system(size: 16))
+                                .foregroundStyle(.gray)
+                                .multilineTextAlignment(.center)
+                        }
+                        .padding(.horizontal, 32)
+                    }
                 }
                 
                 Spacer()
                 
-                // 5. 底部文字提示 (键盘弹起时隐藏)
-                if !isInputFocused {
-                    VStack(spacing: 8) {
-                        Text(viewModel.translatedText.isEmpty ? "Start Learning" : "Word of the Moment")
-                            .font(.title2)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.white)
-                        
-                        Text(viewModel.translatedText.isEmpty ? "Type or speak to translate" : "Tap the big button to listen")
-                            .font(.subheadline)
-                            .foregroundStyle(.gray)
+                // 3. 底部输入区域
+                VStack(spacing: 12) {
+                    // 仿真进度条
+                    if viewModel.isTranslating {
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                Capsule()
+                                    .fill(Color.gray.opacity(0.1))
+                                    .frame(height: 4)
+                                
+                                Capsule()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [.orange, .orange.opacity(0.6)],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                                    .frame(width: geo.size.width * viewModel.translationProgress, height: 4)
+                            }
+                        }
+                        .frame(height: 4)
+                        .padding(.horizontal, 40)
+                        .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .bottom)))
                     }
-                    .padding(.bottom, 30)
-                    .transition(.opacity)
+                    
+                    // 输入框
+                    HStack(spacing: 12) {
+                        TextField("", text: $viewModel.inputText, prompt: Text("输入中文...").foregroundColor(.gray))
+                            .font(.system(size: 18))
+                            .foregroundStyle(.black)
+                            .focused($isInputFocused)
+                            .submitLabel(.go)
+                            .onSubmit {
+                                Task { await viewModel.translate() }
+                            }
+                            .onChange(of: isInputFocused) { _, isFocused in
+                                if isFocused {
+                                    viewModel.inputText = ""
+                                }
+                            }
+                        
+                        if viewModel.isTranslating {
+                            ProgressView()
+                                .tint(.orange)
+                        } else if !viewModel.inputText.isEmpty {
+                            Button {
+                                isInputFocused = false
+                                Task { await viewModel.translate() }
+                            } label: {
+                                Image(systemName: "arrow.right.circle.fill")
+                                    .font(.system(size: 32))
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .frame(height: 60)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(.white)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                            )
+                            .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 4)
+                    )
+                    .padding(.horizontal, 24)
+                    
+                    // 历史记录快捷按钮
+                    if !viewModel.history.isEmpty && viewModel.translatedText.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 12) {
+                                ForEach(viewModel.history.prefix(5)) { record in
+                                    Button {
+                                        viewModel.inputText = record.sourceText
+                                        Task { await viewModel.translate() }
+                                    } label: {
+                                        HStack(spacing: 8) {
+                                            // 英文单词
+                                            Text(record.translatedText)
+                                                .font(.system(size: 16, weight: .semibold))
+                                                .foregroundStyle(.black)
+                                            
+                                            // 分隔符
+                                            Text("·")
+                                                .font(.system(size: 14))
+                                                .foregroundStyle(.gray.opacity(0.4))
+                                            
+                                            // 中文翻译
+                                            Text(record.sourceText)
+                                                .font(.system(size: 14))
+                                                .foregroundStyle(.gray)
+                                        }
+                                        .padding(.horizontal, 18)
+                                        .padding(.vertical, 14)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                                .fill(.white)
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                                )
+                                                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 4)
+                                        )
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 8) // 防止阴影被裁剪
+                        }
+                        .clipShape(Rectangle()) // 使用 Rectangle 而不是默认裁剪
+                    }
                 }
+                .padding(.bottom, 24)
             }
-            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isInputFocused)
-        }
-        // 使用 safeAreaInset 修复键盘遮挡
-        .safeAreaInset(edge: .bottom) {
-            BottomInputCapsule(
-                viewModel: viewModel,
-                isInputFocused: $isInputFocused
-            )
-            .padding(.horizontal, 24)
-            .padding(.bottom, 10)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                isInputFocused = false
+            }
         }
         .errorAlert(isPresented: $viewModel.showError, message: viewModel.errorMessage)
         .sheet(isPresented: $viewModel.showCamera) {
@@ -145,408 +229,416 @@ struct ContentView: View {
         .onChange(of: viewModel.selectedImage) { _, val in
             if val != nil { Task { await viewModel.processSelectedImage() } }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
     }
     
-    // 构造显示数据
-    private func buildCarouselItems() -> [CarouselItem] {
-        var items: [CarouselItem] = []
+    // MARK: - 构建卡片数据
+    
+    private func buildCards() -> [CardData] {
+        var cards: [CardData] = []
         
-        // 获取当前显示的文本，去除首尾空格，统一小写，用于严格去重
-        // 关键修改：使用 currentSourceText 而不是 inputText，切断输入时的实时重绘
-        let currentTextCleaned = viewModel.translatedText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let currentSourceCleaned = viewModel.currentSourceText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        
-        // 1. 如果有当前翻译结果，作为第一张
-        if !viewModel.translatedText.isEmpty {
-            items.append(CarouselItem(
-                id: "current",
-                text: viewModel.translatedText,
-                subtext: viewModel.currentSourceText, // 使用稳定的原文
-                colorType: .green,
-                isInteractive: true
-            ))
-        } else {
-            // 空状态卡片
-            items.append(CarouselItem(
-                id: "empty",
-                text: "Ready?",
-                subtext: "输入中文开始翻译",
-                colorType: .green,
-                isInteractive: false
+        // 当前翻译结果
+        if !viewModel.translatedText.isEmpty, let currentRecord = viewModel.history.first {
+            print("📊 构建卡片数据:")
+            print("   - sourceText: \(currentRecord.sourceText)")
+            print("   - translatedText: \(currentRecord.translatedText)")
+            print("   - chineseTranslation: \(currentRecord.chineseTranslation ?? "nil")")
+            print("   - emoji: \(currentRecord.emoji ?? "nil")")
+            print("   - ipa: \(currentRecord.ipa ?? "nil")")
+            print("   - hint: \(currentRecord.pronunciationHint ?? "nil")")
+            print("   - sentence: \(currentRecord.exampleSentence ?? "nil")")
+            
+            cards.append(CardData(
+                chineseText: currentRecord.chineseTranslation ?? currentRecord.sourceText,  // 优先使用 API 返回的中文
+                englishText: currentRecord.translatedText,  // 英文单词
+                emoji: currentRecord.emoji,
+                exampleSentence: currentRecord.exampleSentence ?? getExampleSentence(for: currentRecord.translatedText),
+                ipa: currentRecord.ipa,
+                pronunciationHint: currentRecord.pronunciationHint
             ))
         }
         
-        // 2. 历史记录 (取前 5 条)
-        // 核心修复：增强去重逻辑，防止 ID 或内容重复
-        let filteredHistory = viewModel.history.filter { record in
-            if !viewModel.translatedText.isEmpty {
-                let recordTextCleaned = record.translatedText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-                let recordSourceCleaned = record.sourceText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-                
-                // 如果翻译结果 OR 原文完全一致，都视为重复，隐藏该历史记录
-                if recordTextCleaned == currentTextCleaned || recordSourceCleaned == currentSourceCleaned {
-                    return false
-                }
-            }
-            return true
-        }
-        
-        for (index, record) in filteredHistory.prefix(5).enumerated() {
-            items.append(CarouselItem(
-                id: record.id.uuidString,
-                text: record.translatedText,
-                subtext: record.sourceText,
-                // 交替颜色：粉、蓝、橙...
-                colorType: index % 2 == 0 ? .pink : .blue,
-                isInteractive: true
+        // 历史记录（最多5条，跳过第一条因为已显示）
+        for record in viewModel.history.dropFirst().prefix(5) {
+            cards.append(CardData(
+                chineseText: record.chineseTranslation ?? record.sourceText,  // 优先使用 API 返回的中文
+                englishText: record.translatedText,  // 英文单词
+                emoji: record.emoji,
+                exampleSentence: record.exampleSentence ?? getExampleSentence(for: record.translatedText),
+                ipa: record.ipa,
+                pronunciationHint: record.pronunciationHint
             ))
         }
         
-        return items
+        return cards
+    }
+    
+    // MARK: - 例句生成
+    
+    private func getExampleSentence(for word: String) -> String {
+        let word = word.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // 1. 优先使用内置高质量例句
+        if let sentence = ExampleSentenceDatabase.shared.getSentence(for: word) {
+            return sentence
+        }
+        
+        // 2. 智能生成例句（基于词性规则）
+        return ExampleSentenceGenerator.generate(for: word)
     }
 }
 
-// MARK: - 3D 轮播卡片 (含陀螺仪)
+// MARK: - 卡片数据模型
 
-struct CarouselCard: View {
-    let item: CarouselItem
-    @ObservedObject var viewModel: TranslationViewModel
-    @ObservedObject var motionManager: MotionManager
+struct CardData {
+    let chineseText: String
+    let englishText: String
+    let emoji: String?
+    let exampleSentence: String
+    let ipa: String?
+    let pronunciationHint: String?
+}
+
+// MARK: - 安全数组访问扩展
+
+extension Array {
+    subscript(safe index: Int) -> Element? {
+        return indices.contains(index) ? self[index] : nil
+    }
+}
+
+// MARK: - 例句数据库（扩展版）
+
+class ExampleSentenceDatabase {
+    static let shared = ExampleSentenceDatabase()
+    
+    private let sentences: [String: String] = [
+        // 动物类 (Animals)
+        "cat": "I have a lovely cat at home.",
+        "dog": "The dog is my best friend.",
+        "bird": "The bird is singing beautifully.",
+        "fish": "Fish live in the water.",
+        "butterfly": "Look at the colorful butterfly!",
+        "bee": "The bee is collecting honey.",
+        "bear": "The bear is very strong.",
+        "panda": "Pandas love eating bamboo.",
+        "elephant": "The elephant has a long nose.",
+        "lion": "The lion is the king of animals.",
+        "tiger": "The tiger runs very fast.",
+        "monkey": "The monkey is climbing the tree.",
+        "rabbit": "The rabbit has long ears.",
+        "horse": "I can ride a horse.",
+        "cow": "The cow gives us milk.",
+        "sheep": "Sheep have soft wool.",
+        "chicken": "The chicken lays eggs.",
+        "duck": "The duck is swimming in the pond.",
+        
+        // 水果类 (Fruits)
+        "apple": "An apple a day keeps the doctor away.",
+        "banana": "I eat a banana every morning.",
+        "orange": "This orange is very sweet.",
+        "grape": "These grapes are delicious.",
+        "strawberry": "I love fresh strawberries.",
+        "watermelon": "Watermelon is my favorite summer fruit.",
+        "peach": "The peach is soft and sweet.",
+        "pear": "I had a pear for dessert.",
+        
+        // 蔬菜类 (Vegetables)
+        "carrot": "Rabbits love to eat carrots.",
+        "potato": "French fries are made from potatoes.",
+        "tomato": "The tomato is red and juicy.",
+        "cucumber": "I like cucumber salad.",
+        
+        // 食物类 (Food)
+        "bread": "I have bread for breakfast.",
+        "milk": "Milk is good for your health.",
+        "egg": "I ate two eggs this morning.",
+        "rice": "We eat rice every day.",
+        "noodles": "These noodles taste great.",
+        "cake": "Happy birthday! Here is your cake.",
+        "cookie": "Can I have a cookie, please?",
+        "chocolate": "Chocolate is very sweet.",
+        
+        // 饮料类 (Drinks)
+        "water": "Drink more water every day.",
+        "juice": "I love orange juice.",
+        "tea": "Would you like some tea?",
+        "coffee": "My mom drinks coffee in the morning.",
+        
+        // 日常用语 (Daily Expressions)
+        "hello": "Hello! Nice to meet you.",
+        "goodbye": "Goodbye! See you tomorrow.",
+        "thank you": "Thank you for your help.",
+        "sorry": "Sorry, I was late.",
+        "please": "Please give me that book.",
+        "yes": "Yes, I agree with you.",
+        "no": "No, I don't think so.",
+        
+        // 情感类 (Feelings)
+        "happy": "I am very happy today.",
+        "sad": "Don't be sad, everything will be fine.",
+        "love": "I love my family very much.",
+        "like": "I like playing football.",
+        
+        // 家庭类 (Family)
+        "father": "My father works in a hospital.",
+        "mother": "My mother cooks very well.",
+        "brother": "I have a younger brother.",
+        "sister": "My sister is a teacher.",
+        "family": "I love my family.",
+        
+        // 地点类 (Places)
+        "home": "There is no place like home.",
+        "school": "I go to school by bus.",
+        "park": "We play in the park on weekends.",
+        "library": "I borrow books from the library.",
+        "hospital": "The doctor works in a hospital.",
+        "shop": "Let's go to the shop.",
+        
+        // 交通工具 (Transportation)
+        "car": "My father drives a car.",
+        "bus": "I take the bus to school.",
+        "bike": "I can ride a bike.",
+        "train": "The train is very fast.",
+        "plane": "We flew to Beijing by plane.",
+        
+        // 学习用品 (School Supplies)
+        "book": "Reading books is fun.",
+        "pen": "I write with a pen.",
+        "pencil": "My pencil is broken.",
+        "bag": "I put my books in the bag.",
+        "desk": "My desk is very clean.",
+        "chair": "Please sit on the chair.",
+        
+        // 颜色类 (Colors)
+        "red": "My favorite color is red.",
+        "blue": "The sky is blue.",
+        "green": "Trees are green in spring.",
+        "yellow": "The sun is yellow.",
+        "black": "I have a black cat.",
+        "white": "Snow is white.",
+        "pink": "She is wearing a pink dress.",
+        
+        // 自然类 (Nature)
+        "sun": "The sun is shining today.",
+        "moon": "The moon is bright tonight.",
+        "star": "I can see many stars in the sky.",
+        "tree": "The tree is very tall.",
+        "flower": "The flower smells wonderful.",
+        "grass": "The grass is very green.",
+        "rain": "It will rain tomorrow.",
+        "snow": "I love playing in the snow.",
+        
+        // 身体部位 (Body Parts)
+        "head": "My head hurts a little.",
+        "eye": "I have two eyes.",
+        "ear": "Rabbits have long ears.",
+        "nose": "The dog has a wet nose.",
+        "mouth": "Open your mouth, please.",
+        "hand": "Wash your hands before eating.",
+        "foot": "My foot is tired.",
+        
+        // 衣物类 (Clothes)
+        "shirt": "I'm wearing a new shirt.",
+        "dress": "That dress is very pretty.",
+        "shoes": "My shoes are comfortable.",
+        "hat": "He is wearing a red hat.",
+        
+        // 数字类 (Numbers)
+        "one": "I have one brother.",
+        "two": "Two plus two equals four.",
+        "three": "There are three apples.",
+        "ten": "I can count to ten.",
+        
+        // 时间类 (Time)
+        "today": "Today is a beautiful day.",
+        "tomorrow": "See you tomorrow.",
+        "yesterday": "I went shopping yesterday.",
+        "morning": "Good morning, everyone!",
+        "night": "Good night, sleep well.",
+        
+        // 其他常用词
+        "friend": "He is my best friend.",
+        "teacher": "My teacher is very kind.",
+        "student": "I am a student.",
+        "birthday": "Happy birthday to you!",
+        "toy": "I have many toys.",
+        "music": "I like listening to music.",
+        "game": "Let's play a game together."
+    ]
+    
+    func getSentence(for word: String) -> String? {
+        return sentences[word.lowercased()]
+    }
+}
+
+// MARK: - 智能例句生成器
+
+struct ExampleSentenceGenerator {
+    static func generate(for word: String) -> String {
+        let word = word.lowercased()
+        
+        // 更智能的判断：根据单词长度和特征选择合适的模板
+        if word.count <= 4 {
+            // 短单词通常是基础词，用简单句型
+            return "Look! This is \(word)."
+        } else if word.hasSuffix("ing") {
+            // -ing 结尾，可能是动名词
+            return "I enjoy \(word)."
+        } else if word.hasSuffix("ly") {
+            // 副词
+            return "He speaks \(word)."
+        } else {
+            // 默认名词句型
+            return "This is a \(word)."
+        }
+    }
+}
+
+// MARK: - 翻译卡片（简洁版）
+
+struct TranslationCard: View {
+    let chineseText: String
+    let englishText: String
+    let emoji: String?
+    let ipa: String?
+    let pronunciationHint: String?
+    let exampleSentence: String?
+    let onPlayTap: () -> Void
+    let onSentenceTap: () -> Void
+    let isSpeaking: Bool
     let isInputFocused: Bool
     
-    let cardWidth: CGFloat
-    let cardHeight: CGFloat
-    
     var body: some View {
-        GeometryReader { proxy in
-            let minX = proxy.frame(in: .global).minX
-            let screenWidth = UIScreen.main.bounds.width
-            let centerOffset = minX - (screenWidth - cardWidth) / 2
+        VStack(spacing: isInputFocused ? 10 : 16) {
+            // 1. 大号 Emoji（视觉焦点）
+            Text(emoji ?? getEmoji(for: englishText))
+                .font(.system(size: isInputFocused ? 60 : 100))
+                .padding(.bottom, isInputFocused ? 4 : 8)
+                .animation(.easeInOut(duration: 0.2), value: isInputFocused)
             
-            // 基础滚动视差
-            let progress = centerOffset / cardWidth
-            let rotation = Double(progress) * -10
-            let scale = 1.0 - (abs(progress) * 0.15)
-            let opacity = 1.0 - (abs(progress) * 0.3)
+            // 2. 英文单词（主要内容）
+            Text(englishText.capitalized)
+                .font(.system(size: isInputFocused ? 28 : 42, weight: .black, design: .rounded))
+                .foregroundStyle(.black)
+                .animation(.easeInOut(duration: 0.2), value: isInputFocused)
             
-            // 陀螺仪视差
-            // 优化：键盘弹起时禁用陀螺仪，减少渲染压力
-            let isFocused = abs(progress) < 0.5
-            let pitch = (isFocused && !isInputFocused) ? motionManager.pitch : 0
-            let roll = (isFocused && !isInputFocused) ? motionManager.roll : 0
-            
-            ZStack {
-                // 1. 卡片背景层
-                RoundedRectangle(cornerRadius: isInputFocused ? 24 : 44, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: item.colorType.colors,
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .shadow(color: item.colorType.colors.first!.opacity(0.3), radius: isInputFocused ? 10 : 20, x: 0, y: 10)
+            // 3. 发音信息行（音标 + 中文提示 统一灰色样式）
+            HStack(spacing: 12) {
+                if let ipa = ipa, !ipa.isEmpty {
+                    Text(ipa)
+                        .font(.system(size: isInputFocused ? 14 : 16, design: .serif))
+                        .foregroundStyle(.gray)
+                }
                 
-                // 2. 卡片内容层
-                VStack(spacing: 0) {
-                    
-                    // 顶部图标区
-                    Spacer()
-                    
-                    VStack(spacing: isInputFocused ? 4 : 16) {
-                        Image(systemName: item.icon)
-                            .font(.system(size: isInputFocused ? 24 : 40))
-                            .foregroundStyle(.white.opacity(0.8))
-                            .shadow(radius: 5)
+                if let hint = pronunciationHint, !hint.isEmpty {
+                    Text(hint)
+                        .font(.system(size: isInputFocused ? 14 : 16, design: .serif))
+                        .foregroundStyle(.gray)
+                }
+            }
+            .padding(.bottom, 2)
+            
+            // 4. 中文翻译
+            Text(chineseText)
+                .font(.system(size: isInputFocused ? 14 : 16, weight: .medium))
+                .foregroundStyle(.gray.opacity(0.8))
+            
+            // 5. 例句区域（去掉标题和分割线，采用卡片包裹）
+            if !isInputFocused, let sentence = exampleSentence {
+                Button(action: onSentenceTap) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "play.circle.fill")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.orange)
                         
-                        Text(item.subtext)
-                            .font(isInputFocused ? .headline : .title3)
-                            .fontWeight(.medium)
-                            .foregroundStyle(.white.opacity(0.9))
+                        Text(sentence)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.black.opacity(0.7))
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
                     }
-                    .offset(x: roll * 10, y: pitch * 10)
-                    
-                    Spacer()
-                    
-                    // 核心单词
-                    Text(item.text)
-                        .font(.system(size: isInputFocused ? 32 : 56, weight: .black, design: .rounded))
-                        .foregroundStyle(.white)
-                        .multilineTextAlignment(.center)
-                        .minimumScaleFactor(0.4)
-                        .padding(.horizontal)
-                        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 4)
-                        .offset(x: roll * 15, y: pitch * 15)
-                    
-                    Spacer()
-                    Spacer()
-                    
-                    // 播放按钮
-                    if item.isInteractive {
-                        Button {
-                            // 修复：直接播放内容，不再修改 viewModel 的状态，防止 UI 错乱
-                            viewModel.ttsService.speak(item.text)
-                        } label: {
-                            ZStack {
-                                // 光晕背景
-                                Circle()
-                                    .fill(.white.opacity(0.2))
-                                    .frame(width: isInputFocused ? 50 : 90, height: isInputFocused ? 50 : 90)
-                                    .blur(radius: isInputFocused ? 5 : 10)
-                                    // 仅当是当前卡片且正在播放时，才显示光晕动画
-                                    .opacity(viewModel.ttsService.isSpeaking && item.id == "current" ? 1.0 : 0.0)
-                                
-                                // 按钮主体
-                                Circle()
-                                    .fill(.white)
-                                    .frame(width: isInputFocused ? 44 : 80, height: isInputFocused ? 44 : 80)
-                                    .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
-                                
-                                // 图标
-                                Image(systemName: "play.fill") // 简化逻辑，统一显示播放图标，避免状态混淆
-                                    .font(.system(size: isInputFocused ? 20 : 36))
-                                    .foregroundStyle(item.colorType.colors.first!)
-                                    .offset(x: 4) // 视觉修正
-                            }
-                        }
-                        .scaleEffect(viewModel.ttsService.isSpeaking && item.id == "current" ? 1.1 : 1.0)
-                        .padding(.bottom, isInputFocused ? 20 : 50)
-                        .offset(x: roll * 20, y: pitch * 20)
-                    } else {
-                        Spacer().frame(height: isInputFocused ? 60 : 130)
-                    }
-                }
-            }
-            // 3D 变换
-            .frame(width: cardWidth, height: cardHeight)
-            .scaleEffect(scale)
-            .rotation3DEffect(
-                .degrees(rotation + (isFocused ? roll * 5 : 0)),
-                axis: (x: 0, y: 1, z: 0)
-            )
-            .rotation3DEffect(
-                .degrees(isFocused ? pitch * -5 : 0),
-                axis: (x: 1, y: 0, z: 0)
-            )
-            .opacity(opacity)
-            .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
-        }
-    }
-}
-
-// MARK: - 陀螺仪管理器
-
-class MotionManager: ObservableObject {
-    private let manager = CMMotionManager()
-    
-    @Published var pitch: Double = 0.0 // 前后倾斜
-    @Published var roll: Double = 0.0  // 左右倾斜
-    
-    init() {
-        // 检查设备是否支持
-        if manager.isDeviceMotionAvailable {
-            manager.deviceMotionUpdateInterval = 1.0 / 60.0 // 60Hz 更新
-            manager.startDeviceMotionUpdates(to: .main) { [weak self] data, error in
-                guard let self = self, let data = data else { return }
-                
-                // 使用 smooth 动画更新数据，避免抖动
-                withAnimation(.interactiveSpring(response: 0.2, dampingFraction: 0.8)) {
-                    // 限制最大角度，避免过度旋转 (-1 ~ 1 范围大概是 ±57度)
-                    // 我们限制在 ±0.5 左右 (约30度) 即可
-                    self.pitch = max(-0.5, min(0.5, data.attitude.pitch))
-                    self.roll = max(-0.5, min(0.5, data.attitude.roll))
-                }
-            }
-        } else {
-            print("⚠️ Device Motion not available (Simulator?)")
-        }
-    }
-    
-    deinit {
-        manager.stopDeviceMotionUpdates()
-    }
-}
-
-// MARK: - 底部胶囊输入栏 (纯键盘模式 - iOS 26 液态玻璃风格)
-
-struct BottomInputCapsule: View {
-    @ObservedObject var viewModel: TranslationViewModel
-    @FocusState.Binding var isInputFocused: Bool
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            // 输入图标
-            Image(systemName: "keyboard")
-                .foregroundStyle(.secondary) // 适配玻璃质感
-                .font(.system(size: 20))
-            
-            // 输入框
-            TextField("", text: $viewModel.inputText, prompt: Text("Input word...").foregroundColor(.gray))
-                .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(.primary) // 使用主色（深色模式下为白）
-                .focused($isInputFocused)
-                .submitLabel(.go)
-                .onSubmit {
-                    Task { await viewModel.translate() }
-                }
-                // 新增：当输入框获得焦点时，自动清空内容
-                .onChange(of: isInputFocused) { _, isFocused in
-                    if isFocused {
-                        viewModel.inputText = ""
-                    }
-                }
-            
-            // 动作按钮
-            if isInputFocused {
-                // 收起键盘
-                Button {
-                    isInputFocused = false
-                } label: {
-                    Image(systemName: "keyboard.chevron.compact.down.fill")
-                        .font(.system(size: 28))
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(.secondary)
-                }
-            } else if viewModel.inputText.isEmpty {
-                // 占位
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(.secondary.opacity(0.5))
-            } else if viewModel.isTranslating {
-                ProgressView()
-                    .tint(.white)
-            } else {
-                Button {
-                    isInputFocused = false
-                    Task { await viewModel.translate() }
-                } label: {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 32))
-                        .symbolRenderingMode(.hierarchical) // 层次感渲染
-                        .foregroundStyle(.white)
-                }
-            }
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 16)
-        .background(
-            ZStack {
-                // 1. 液态玻璃基底：超薄材质 + 混合模式
-                Capsule()
-                    .fill(.ultraThinMaterial)
-                    .environment(\.colorScheme, .dark) // 强制深色磨砂感
-                
-                // 2. 流动光泽 (Fluid Sheen)
-                Capsule()
-                    .fill(
-                        LinearGradient(
-                            stops: [
-                                .init(color: .white.opacity(0.0), location: 0),
-                                .init(color: .white.opacity(0.1), location: 0.3), // 高光流动点
-                                .init(color: .white.opacity(0.0), location: 0.6)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.orange.opacity(0.05))
                     )
-                    .blendMode(.overlay)
+                }
+                .padding(.top, 8)
+                .padding(.horizontal, 20)
             }
-        )
-        .clipShape(Capsule())
-        .overlay(
-            // 3. 边缘透镜效果 (Lensing Effect)
-            Capsule()
-                .strokeBorder(
-                    LinearGradient(
-                        stops: [
-                            .init(color: .white.opacity(0.6), location: 0),   // 左上强反光
-                            .init(color: .white.opacity(0.1), location: 0.5),
-                            .init(color: .white.opacity(0.4), location: 1)    // 右下次反光
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1.5
-                )
-                .blendMode(.screen) // 混合模式增强光感
-        )
-        .shadow(color: .black.opacity(0.4), radius: 20, x: 0, y: 10) // 深邃投影
-    }
-}
-
-// MARK: - 页面指示器
-
-struct PageIndicator: View {
-    let currentID: String?
-    let items: [CarouselItem]
-    
-    var body: some View {
-        HStack(spacing: 8) {
-            ForEach(items) { item in
-                Capsule()
-                    .fill(currentID == item.id ? Color.white : Color.white.opacity(0.3))
-                    .frame(width: currentID == item.id ? 20 : 8, height: 8)
-                    .animation(.spring(response: 0.3), value: currentID)
+            
+            // 6. 播放单词按钮（升级为大圆按钮）
+            if !isInputFocused {
+                Button(action: onPlayTap) {
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.orange, Color.orange.opacity(0.8)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .shadow(color: .orange.opacity(0.35), radius: 12, x: 0, y: 6)
+                        
+                        Image(systemName: isSpeaking ? "pause.fill" : "play.fill")
+                            .font(.system(size: 30, weight: .bold))
+                            .foregroundStyle(.white)
+                            .offset(x: isSpeaking ? 0 : 2) // 播放图标视觉对齐修正
+                    }
+                    .frame(width: 84, height: 84)
+                }
+                .scaleEffect(isSpeaking ? 1.05 : 1.0)
+                .animation(.easeInOut(duration: 0.2), value: isSpeaking)
+                .padding(.top, 12)
             }
         }
-        .padding(8)
-        .background(.black.opacity(0.3))
-        .clipShape(Capsule())
+        .padding(.horizontal, 24)
+        .padding(.vertical, isInputFocused ? 12 : 20)
+    }
+    
+    // 根据单词返回对应的 Emoji
+    private func getEmoji(for word: String) -> String {
+        let word = word.lowercased()
+        let emojiMap: [String: String] = [
+            "cat": "🐱", "dog": "🐶", "bird": "🐦", "fish": "🐟",
+            "butterfly": "🦋", "bee": "🐝", "bear": "🐻", "panda": "🐼",
+            "apple": "🍎", "banana": "🍌", "orange": "🍊", "grape": "🍇",
+            "hello": "👋", "love": "❤️", "star": "⭐", "sun": "☀️",
+            "moon": "🌙", "tree": "🌳", "flower": "🌸", "book": "📚",
+            "home": "🏠", "school": "🏫", "car": "🚗", "phone": "📱"
+        ]
+        return emojiMap[word] ?? "✨"
     }
 }
 
-// MARK: - 数据模型与扩展
+// MARK: - 错误提示修饰器
 
-struct CarouselItem: Identifiable, Hashable {
-    let id: String
-    let text: String
-    let subtext: String
-    let colorType: CardColor
-    let isInteractive: Bool
+struct ErrorAlertModifier: ViewModifier {
+    @Binding var isPresented: Bool
+    let message: String?
     
-    // Hashable 实现
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(id)
-    }
-    
-    static func == (lhs: CarouselItem, rhs: CarouselItem) -> Bool {
-        lhs.id == rhs.id
-    }
-    
-    var icon: String {
-        switch colorType {
-        case .green: return "text.book.closed.fill"
-        case .pink: return "clock.fill"
-        case .blue: return "star.fill"
-        }
-    }
-}
-
-enum CardColor {
-    case green, pink, blue
-    
-    var colors: [Color] {
-        switch self {
-        case .green:
-            return [Color(red: 0.18, green: 0.49, blue: 0.20), Color(red: 0.40, green: 0.73, blue: 0.42)]
-        case .pink:
-            return [Color(red: 0.76, green: 0.09, blue: 0.36), Color(red: 0.96, green: 0.56, blue: 0.69)]
-        case .blue:
-            return [Color(red: 0.08, green: 0.40, blue: 0.75), Color(red: 0.26, green: 0.65, blue: 0.96)]
-        }
+    func body(content: Content) -> some View {
+        content
+            .alert("提示", isPresented: $isPresented) {
+                Button("确定", role: .cancel) { }
+            } message: {
+                if let message = message {
+                    Text(message)
+                }
+            }
     }
 }
 
 extension View {
     func errorAlert(isPresented: Binding<Bool>, message: String?) -> some View {
-        alert("Error", isPresented: isPresented) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            if let message { Text(message) }
-        }
+        modifier(ErrorAlertModifier(isPresented: isPresented, message: message))
     }
 }
+
+// MARK: - 预览
 
 #Preview {
     ContentView()

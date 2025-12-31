@@ -15,6 +15,7 @@ class TTSService: NSObject, ObservableObject {
     private let synthesizer = AVSpeechSynthesizer()
     @Published var isSpeaking = false
     @Published var isReady = false  // 音频是否已准备好
+    private var isPrewarming = false  // 是否正在预热（预加载/预热时不改变 isSpeaking 状态）
     
     override init() {
         super.init()
@@ -39,6 +40,9 @@ class TTSService: NSObject, ObservableObject {
                 print("❌ 音频会话预加载失败: \(error)")
             }
             
+            // 标记为预热状态
+            self.isPrewarming = true
+            
             // 预热语音合成器（朗读一个空字符串）
             let utterance = AVSpeechUtterance(string: " ")
             utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
@@ -49,9 +53,33 @@ class TTSService: NSObject, ObservableObject {
             
             // 等待预热完成
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self.isPrewarming = false
                 self.isReady = true
                 print("✅ 语音合成器预热完成，准备就绪")
             }
+        }
+    }
+    
+    /// 预热特定内容的语音引擎
+    func prewarm(_ text: String) {
+        let cleanedText = cleanText(text)
+        guard !cleanedText.isEmpty else { return }
+        
+        // 标记为预热状态
+        isPrewarming = true
+        
+        // 创建一个静音的朗读任务，让引擎准备好该文本的合成
+        let utterance = AVSpeechUtterance(string: cleanedText)
+        utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+        utterance.volume = 0.001 // 极低音量，几乎听不到但能触发合成
+        utterance.rate = 0.45
+        
+        synthesizer.speak(utterance)
+        print("🔊 [DEBUG] 语音引擎已针对内容预热: \(cleanedText)")
+        
+        // 预热完成后重置标记
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            self?.isPrewarming = false
         }
     }
     
@@ -146,19 +174,28 @@ extension TTSService: AVSpeechSynthesizerDelegate {
     
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
         DispatchQueue.main.async {
-            self.isSpeaking = true
+            // 只有在非预热状态下才改变 isSpeaking
+            if !self.isPrewarming {
+                self.isSpeaking = true
+            }
         }
     }
     
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
         DispatchQueue.main.async {
-            self.isSpeaking = false
+            // 只有在非预热状态下才改变 isSpeaking
+            if !self.isPrewarming {
+                self.isSpeaking = false
+            }
         }
     }
     
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
         DispatchQueue.main.async {
-            self.isSpeaking = false
+            // 只有在非预热状态下才改变 isSpeaking
+            if !self.isPrewarming {
+                self.isSpeaking = false
+            }
         }
     }
 }
