@@ -26,24 +26,25 @@ class TranslationService: ObservableObject {
     
     struct DifyOutputs: Codable {
         let text: String?     // 真正的 JSON 字符串在这里
-        let word: String?     // 兼容直模式
-        let emoji: String?
-        let cn: String?
-        let sentence: String?
-        let pronunciation: PronunciationData?
     }
     
-    struct TranslationData: Codable {
-        let word: String?
-        let emoji: String?
-        let cn: String?
-        let sentence: String?
-        let pronunciation: PronunciationData?
+    // 新版 API 响应结构（多词返回）
+    struct DifyWordsResponse: Codable {
+        let words: [WordData]
     }
     
-    struct PronunciationData: Codable {
-        let ipa: String?
-        let hint: String?
+    struct WordData: Codable {
+        let word: String
+        let emoji: String
+        let cn: String
+        let sentences: [String]
+        let dialogue: [DialogueData]
+        let pronunciation: PronunciationData
+    }
+    
+    struct DialogueData: Codable {
+        let speaker: String
+        let text: String
     }
     
     /// 翻译中文到英文（增强版，返回完整数据）
@@ -160,26 +161,20 @@ class TranslationService: ObservableObject {
         do {
             let wrapper = try JSONDecoder().decode(DifyWrapper.self, from: data)
             
-            // 策略 1: 检查 data.outputs.text (你提供的日志正是这种)
+            // 策略 1: 检查 data.outputs.text (新版多词返回)
             if let jsonString = wrapper.data?.outputs?.text, !jsonString.isEmpty {
-                if let result = tryParseNestedJson(jsonString, original: text) {
-                    print("✅ Dify 解析成功: Data.Outputs.Text 深度包装模式")
+                if let result = tryParseWordsResponse(jsonString, original: text) {
+                    print("✅ Dify 解析成功: Data.Outputs.Text 多词模式")
                     return result
                 }
             }
             
             // 策略 2: 检查根部的 text (兼容模式)
             if let jsonString = wrapper.text, !jsonString.isEmpty {
-                if let result = tryParseNestedJson(jsonString, original: text) {
-                    print("✅ Dify 解析成功: Root.Text 包装模式")
+                if let result = tryParseWordsResponse(jsonString, original: text) {
+                    print("✅ Dify 解析成功: Root.Text 多词模式")
                     return result
                 }
-            }
-            
-            // 策略 3: 检查 data.outputs 直接包含字段 (直出模式)
-            if let outputs = wrapper.data?.outputs, outputs.word != nil {
-                print("✅ Dify 解析成功: Data.Outputs 直出模式")
-                return createResultFromOutputs(outputs, original: text)
             }
             
             throw TranslationError.unknownError
@@ -189,46 +184,59 @@ class TranslationService: ObservableObject {
         }
     }
     
-    // 辅助解析内层 JSON
-    private func tryParseNestedJson(_ jsonString: String, original: String) -> TranslationResult? {
+    // 辅助解析多词响应
+    private func tryParseWordsResponse(_ jsonString: String, original: String) -> TranslationResult? {
         var cleanedJson = jsonString.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // 清理 markdown 代码块标记
         if cleanedJson.hasPrefix("```") {
             cleanedJson = cleanedJson.components(separatedBy: "\n")
                 .filter { !$0.hasPrefix("```") }
                 .joined(separator: "\n")
         }
         
-        guard let innerData = cleanedJson.data(using: .utf8),
-              let translationData = try? JSONDecoder().decode(TranslationData.self, from: innerData) else {
+        guard let innerData = cleanedJson.data(using: .utf8) else {
             return nil
         }
         
-        return createResult(from: translationData, original: original)
+        // 尝试解析为多词响应
+        if let wordsResponse = try? JSONDecoder().decode(DifyWordsResponse.self, from: innerData),
+           !wordsResponse.words.isEmpty {
+            return createResultFromWords(wordsResponse.words, original: original)
+        }
+        
+        return nil
     }
     
-    // 辅助转换 Outputs 到 Result
-    private func createResultFromOutputs(_ outputs: DifyOutputs, original: String) -> TranslationResult {
-        return TranslationResult(
-            sourceText: original,
-            translatedText: outputs.word ?? original,
-            chineseTranslation: outputs.cn,
-            emoji: outputs.emoji,
-            exampleSentence: outputs.sentence,
-            ipa: outputs.pronunciation?.ipa,
-            pronunciationHint: outputs.pronunciation?.hint
+    // 辅助方法：从 WordData 数组构建 TranslationResult
+    private func createResultFromWords(_ words: [WordData], original: String) -> TranslationResult {
+        // 第一个词是主词
+        let mainWordData = words[0]
+        let mainWord = WordItem(
+            word: mainWordData.word,
+            emoji: mainWordData.emoji,
+            cn: mainWordData.cn,
+            sentences: mainWordData.sentences,
+            dialogue: mainWordData.dialogue.map { DialogueLine(speaker: $0.speaker, text: $0.text) },
+            pronunciation: mainWordData.pronunciation
         )
-    }
-    
-    // 辅助方法：构建结果对象
-    private func createResult(from data: TranslationData, original: String) -> TranslationResult {
+        
+        // 其余是相似词
+        let similarWords = words.dropFirst().map { wordData in
+            WordItem(
+                word: wordData.word,
+                emoji: wordData.emoji,
+                cn: wordData.cn,
+                sentences: wordData.sentences,
+                dialogue: wordData.dialogue.map { DialogueLine(speaker: $0.speaker, text: $0.text) },
+                pronunciation: wordData.pronunciation
+            )
+        }
+        
         return TranslationResult(
             sourceText: original,
-            translatedText: data.word ?? original,
-            chineseTranslation: data.cn,
-            emoji: data.emoji,
-            exampleSentence: data.sentence,
-            ipa: data.pronunciation?.ipa,
-            pronunciationHint: data.pronunciation?.hint
+            mainWord: mainWord,
+            similarWords: Array(similarWords)
         )
     }
     

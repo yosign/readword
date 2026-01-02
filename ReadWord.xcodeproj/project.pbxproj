@@ -9,6 +9,9 @@
 /* Begin PBXBuildFile section */
 		EF7153942F052A7800D8E4EA /* splash.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = EF7153932F052A7700D8E4EA /* splash.mp4 */; };
 		EF7154D42F0538BD00D8E4EA /* white.jpg in Resources */ = {isa = PBXBuildFile; fileRef = EF7154D32F0538BD00D8E4EA /* white.jpg */; };
+		EF71559E2F05488500D8E4EA /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EF7155632F05477B00D8E4EA /* WidgetKit.framework */; };
+		EF71559F2F05488500D8E4EA /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EF7155652F05477C00D8E4EA /* SwiftUI.framework */; };
+		EF7155AE2F05488800D8E4EA /* ReadWordWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = EF71559D2F05488500D8E4EA /* ReadWordWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -26,7 +29,28 @@
 			remoteGlobalIDString = EF71518D2EFE97B400D8E4EA;
 			remoteInfo = ReadWord;
 		};
+		EF7155AC2F05488800D8E4EA /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = EF7151862EFE97B400D8E4EA /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = EF71559C2F05488500D8E4EA;
+			remoteInfo = ReadWordWidgetExtension;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		EF71557C2F05477E00D8E4EA /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				EF7155AE2F05488800D8E4EA /* ReadWordWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		EF71518E2EFE97B400D8E4EA /* ReadWord.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ReadWord.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -34,7 +58,20 @@
 		EF7151A52EFE97B700D8E4EA /* ReadWordUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ReadWordUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		EF7153932F052A7700D8E4EA /* splash.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = splash.mp4; sourceTree = "<group>"; };
 		EF7154D32F0538BD00D8E4EA /* white.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = white.jpg; sourceTree = "<group>"; };
+		EF7155632F05477B00D8E4EA /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		EF7155652F05477C00D8E4EA /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		EF71559D2F05488500D8E4EA /* ReadWordWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ReadWordWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		EF7155AF2F05488800D8E4EA /* Exceptions for "ReadWordWidget" folder in "ReadWordWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = EF71559C2F05488500D8E4EA /* ReadWordWidgetExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		EF7151902EFE97B400D8E4EA /* ReadWord */ = {
@@ -50,6 +87,14 @@
 		EF7151A82EFE97B700D8E4EA /* ReadWordUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = ReadWordUITests;
+			sourceTree = "<group>";
+		};
+		EF7155A02F05488500D8E4EA /* ReadWordWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				EF7155AF2F05488800D8E4EA /* Exceptions for "ReadWordWidget" folder in "ReadWordWidgetExtension" target */,
+			);
+			path = ReadWordWidget;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -76,6 +121,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		EF71559A2F05488500D8E4EA /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EF71559F2F05488500D8E4EA /* SwiftUI.framework in Frameworks */,
+				EF71559E2F05488500D8E4EA /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -85,6 +139,8 @@
 				EF7151902EFE97B400D8E4EA /* ReadWord */,
 				EF71519E2EFE97B700D8E4EA /* ReadWordTests */,
 				EF7151A82EFE97B700D8E4EA /* ReadWordUITests */,
+				EF7155A02F05488500D8E4EA /* ReadWordWidget */,
+				EF7155622F05477B00D8E4EA /* Frameworks */,
 				EF71518F2EFE97B400D8E4EA /* Products */,
 				EF7153932F052A7700D8E4EA /* splash.mp4 */,
 				EF7154D32F0538BD00D8E4EA /* white.jpg */,
@@ -97,8 +153,18 @@
 				EF71518E2EFE97B400D8E4EA /* ReadWord.app */,
 				EF71519B2EFE97B700D8E4EA /* ReadWordTests.xctest */,
 				EF7151A52EFE97B700D8E4EA /* ReadWordUITests.xctest */,
+				EF71559D2F05488500D8E4EA /* ReadWordWidgetExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		EF7155622F05477B00D8E4EA /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				EF7155632F05477B00D8E4EA /* WidgetKit.framework */,
+				EF7155652F05477C00D8E4EA /* SwiftUI.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -111,10 +177,12 @@
 				EF71518A2EFE97B400D8E4EA /* Sources */,
 				EF71518B2EFE97B400D8E4EA /* Frameworks */,
 				EF71518C2EFE97B400D8E4EA /* Resources */,
+				EF71557C2F05477E00D8E4EA /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				EF7155AD2F05488800D8E4EA /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				EF7151902EFE97B400D8E4EA /* ReadWord */,
@@ -172,6 +240,28 @@
 			productReference = EF7151A52EFE97B700D8E4EA /* ReadWordUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		EF71559C2F05488500D8E4EA /* ReadWordWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EF7155B02F05488800D8E4EA /* Build configuration list for PBXNativeTarget "ReadWordWidgetExtension" */;
+			buildPhases = (
+				EF7155992F05488500D8E4EA /* Sources */,
+				EF71559A2F05488500D8E4EA /* Frameworks */,
+				EF71559B2F05488500D8E4EA /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				EF7155A02F05488500D8E4EA /* ReadWordWidget */,
+			);
+			name = ReadWordWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = ReadWordWidgetExtension;
+			productReference = EF71559D2F05488500D8E4EA /* ReadWordWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -193,6 +283,9 @@
 						CreatedOnToolsVersion = 26.2;
 						TestTargetID = EF71518D2EFE97B400D8E4EA;
 					};
+					EF71559C2F05488500D8E4EA = {
+						CreatedOnToolsVersion = 26.2;
+					};
 				};
 			};
 			buildConfigurationList = EF7151892EFE97B400D8E4EA /* Build configuration list for PBXProject "ReadWord" */;
@@ -212,6 +305,7 @@
 				EF71518D2EFE97B400D8E4EA /* ReadWord */,
 				EF71519A2EFE97B700D8E4EA /* ReadWordTests */,
 				EF7151A42EFE97B700D8E4EA /* ReadWordUITests */,
+				EF71559C2F05488500D8E4EA /* ReadWordWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -234,6 +328,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		EF7151A32EFE97B700D8E4EA /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EF71559B2F05488500D8E4EA /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -264,6 +365,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		EF7155992F05488500D8E4EA /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -276,6 +384,11 @@
 			isa = PBXTargetDependency;
 			target = EF71518D2EFE97B400D8E4EA /* ReadWord */;
 			targetProxy = EF7151A62EFE97B700D8E4EA /* PBXContainerItemProxy */;
+		};
+		EF7155AD2F05488800D8E4EA /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = EF71559C2F05488500D8E4EA /* ReadWordWidgetExtension */;
+			targetProxy = EF7155AC2F05488800D8E4EA /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -413,6 +526,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "小卷学英语";
+				INFOPLIST_KEY_CFBundleURLTypes = "{\n    CFBundleURLName = \"com.readword.urlscheme\";\n    CFBundleURLSchemes =     (\n        readword\n    );\n}";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
 				INFOPLIST_KEY_NSCameraUsageDescription = "需要使用相机拍照识别文字";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "需要使用麦克风进行语音识别";
@@ -456,6 +570,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "小卷学英语";
 				"INFOPLIST_KEY_CFBundleDisplayName[sdk=iphoneos*]" = "小卷学英语";
+				INFOPLIST_KEY_CFBundleURLTypes = "{\n    CFBundleURLName = \"com.readword.urlscheme\";\n    CFBundleURLSchemes =     (\n        readword\n    );\n}";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
 				INFOPLIST_KEY_NSCameraUsageDescription = "需要使用相机拍照识别文字";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "需要使用麦克风进行语音识别";
@@ -491,7 +606,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 5L6UR3F2XH;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
@@ -513,7 +628,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 5L6UR3F2XH;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
@@ -534,7 +649,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 5L6UR3F2XH;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
@@ -554,7 +669,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 5L6UR3F2XH;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
@@ -567,6 +682,68 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = ReadWord;
+			};
+			name = Release;
+		};
+		EF7155B12F05488800D8E4EA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = 5L6UR3F2XH;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ReadWordWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ReadWordWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = nesslijin.ReadWord.ReadWordWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		EF7155B22F05488800D8E4EA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = 5L6UR3F2XH;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ReadWordWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ReadWordWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = nesslijin.ReadWord.ReadWordWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
@@ -605,6 +782,15 @@
 			buildConfigurations = (
 				EF7151B62EFE97B700D8E4EA /* Debug */,
 				EF7151B72EFE97B700D8E4EA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		EF7155B02F05488800D8E4EA /* Build configuration list for PBXNativeTarget "ReadWordWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EF7155B12F05488800D8E4EA /* Debug */,
+				EF7155B22F05488800D8E4EA /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

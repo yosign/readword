@@ -1,0 +1,52 @@
+{
+  "words": [
+    {
+      "word": "apple",
+      "emoji": "🍎",
+      "cn": "苹果",
+      "sentences": [
+        "I eat a red apple.",
+        "The apple is very sweet.",
+        "Wash the big apple now.",
+        "I like this crunchy apple.",
+        "Put the apple in your bag.",
+        "The apple falls from the tree.",
+        "Give the apple to mommy."
+      ],
+      "dialogue": [
+        { "speaker": "A", "text": "Do you want an apple?" },
+        { "speaker": "B", "text": "Yes, please." },
+        { "speaker": "A", "text": "Here is a red apple." },
+        { "speaker": "B", "text": "Thank you, it is yummy!" }
+      ],
+      "pronunciation": {
+        "ipa": "/ˈæp.əl/",
+        "hint": "A-pul（阿-坡）"
+      }
+    },
+    {
+      "word": "banana",
+      "emoji": "🍌",
+      "cn": "香蕉",
+      "sentences": [
+        "The banana is bright yellow.",
+        "I peel the long banana.",
+        "Eat your sweet banana now.",
+        "This banana is very soft.",
+        "Monkey likes to eat banana.",
+        "I have a banana for snack.",
+        "Put the banana on the plate."
+      ],
+      "dialogue": [
+        { "speaker": "A", "text": "Look at this banana!" },
+        { "speaker": "B", "text": "It looks like a smile." },
+        { "speaker": "A", "text": "Let's peel and eat it." }
+      ],
+      "pronunciation": {
+        "ipa": "/bəˈnæn.ə/",
+        "hint": "Buh-na-na（博-拿-拿）"
+      }
+    }
+  ]
+}
+

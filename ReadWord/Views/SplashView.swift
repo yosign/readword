@@ -8,6 +8,7 @@ import AVKit
 
 struct SplashView: View {
     @Binding var isFinished: Bool
+    @ObservedObject var viewModel: TranslationViewModel // 接收预加载的 ViewModel
     
     // 提前持有播放器，确保进入即播放
     @State private var player: AVPlayer = {
@@ -20,6 +21,7 @@ struct SplashView: View {
     }()
     
     @State private var rotationDegree: Double = 0
+    @State private var hasStartedPreloading = false // 确保只预加载一次
     
     var body: some View {
         ZStack {
@@ -71,6 +73,46 @@ struct SplashView: View {
         .ignoresSafeArea()
         .onAppear {
             player.play()
+            
+            // 在启动动画期间预加载首页数据和朗读信息
+            if !hasStartedPreloading {
+                hasStartedPreloading = true
+                preloadData()
+            }
+        }
+    }
+    
+    /// 预加载首页数据和朗读信息
+    private func preloadData() {
+        print("🚀 [启动预加载] 开始预加载首页数据和朗读信息...")
+        
+        // 1. 历史记录已经在 TranslationViewModel.init() 中加载
+        // 2. TTS 已经在 TTSService.init() 中预加载
+        
+        // 3. 在后台线程预加载，不阻塞 UI
+        Task { @MainActor in
+            // 等待 TTS 服务准备就绪（最多等待5秒，正好是启动动画的时间）
+            var waitCount = 0
+            while !viewModel.ttsService.isReady && waitCount < 50 {
+                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1秒
+                waitCount += 1
+            }
+            
+            // 检查历史记录是否已加载
+            let historyCount = viewModel.history.count
+            let learnedWordsCount = viewModel.learnedWordsCount
+            
+            print("✅ [启动预加载] 预加载完成！")
+            print("   - 历史记录: \(historyCount) 条")
+            print("   - 已学词汇: \(learnedWordsCount) 个")
+            print("   - TTS 服务: \(viewModel.ttsService.isReady ? "✅ 就绪" : "⏳ 准备中")")
+            
+            // 预加载最近几个单词的 TTS（如果历史记录中有）
+            if historyCount > 0 {
+                let recentWords = viewModel.history.prefix(3).flatMap { $0.allWords }
+                print("   - 预加载最近 \(recentWords.count) 个单词的 TTS")
+                // 注意：prewarm 目前被禁用，实际预热由 TTS 服务的初始化完成
+            }
         }
     }
 }

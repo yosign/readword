@@ -9,6 +9,21 @@ import PhotosUI
 import Combine
 import Speech
 
+/// 首页布局模式
+enum HomeLayoutMode: String, CaseIterable {
+    case waterfall = "瀑布流"
+    case scattered = "散布"
+    case list = "列表"
+    
+    var icon: String {
+        switch self {
+        case .waterfall: return "square.grid.2x2"
+        case .scattered: return "square.on.square"
+        case .list: return "list.bullet"
+        }
+    }
+}
+
 @MainActor
 class TranslationViewModel: ObservableObject {
     
@@ -23,6 +38,7 @@ class TranslationViewModel: ObservableObject {
     @Published var history: [TranslationResult] = []
     @Published var selectedImage: PhotosPickerItem?
     @Published var showCamera = false
+    @Published var homeLayoutMode: HomeLayoutMode = .waterfall // 首页布局模式
     
     private let historyKey = "translationHistory"
     private let translationService = TranslationService()
@@ -34,14 +50,27 @@ class TranslationViewModel: ObservableObject {
         loadHistory()
     }
     
+    // MARK: - 已学词汇统计
+    
+    /// 已学词汇数量（去重统计所有不重复的单词）
+    var learnedWordsCount: Int {
+        let allWords = history.flatMap { $0.allWords.map { $0.word.lowercased() } }
+        return Set(allWords).count
+    }
+    
+    /// 获取所有显示的词条（用于首页列表）
+    var allDisplayWords: [WordItem] {
+        history.flatMap { $0.allWords }
+    }
+    
     func translate() async {
         guard !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         
         let cleanedInput = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        // 🔍 先检查缓存：查找历史记录中是否有相同的词
+        // 🔍 先检查缓存：查找历史记录中是否有相同的词（匹配主词）
         if let cachedRecord = history.first(where: { $0.sourceText == cleanedInput }) {
-            print("💾 使用缓存数据: \(cachedRecord.translatedText)")
+            print("💾 使用缓存数据: \(cachedRecord.mainWord.word)")
             
             // 使用缓存数据，无需请求接口
             isTranslating = true
@@ -51,11 +80,11 @@ class TranslationViewModel: ObservableObject {
             withAnimation(.easeOut(duration: 0.3)) { translationProgress = 1.0 }
             try? await Task.sleep(nanoseconds: 300_000_000)
             
-            self.translatedText = cachedRecord.translatedText
+            self.translatedText = cachedRecord.mainWord.word
             self.currentSourceText = cleanedInput
             
             // 预热语音引擎
-            ttsService.prewarm(cachedRecord.translatedText)
+            ttsService.prewarm(cachedRecord.mainWord.word)
             
             // 将该记录移到最前面（更新使用时间）
             if let index = history.firstIndex(where: { $0.id == cachedRecord.id }) {
@@ -71,6 +100,7 @@ class TranslationViewModel: ObservableObject {
         }
         
         // 📡 缓存未命中，请求接口
+        self.translatedText = "" // 清空旧结果，避免显示错误的历史记录
         isTranslating = true
         translationProgress = 0.0
         errorMessage = nil
@@ -97,13 +127,13 @@ class TranslationViewModel: ObservableObject {
             withAnimation(.spring(response: 0.3)) { translationProgress = 1.0 }
             try? await Task.sleep(nanoseconds: 300_000_000)
             
-            print("✅ 成功获取记录: \(record.translatedText)")
+            print("✅ 成功获取记录: \(record.mainWord.word)")
             
-            self.translatedText = record.translatedText
+            self.translatedText = record.mainWord.word
             self.currentSourceText = cleanedInput
             
             // 核心优化：翻译成功后立即预热语音引擎
-            ttsService.prewarm(record.translatedText)
+            ttsService.prewarm(record.mainWord.word)
             
             history.insert(record, at: 0)
             if history.count > 50 { history.removeLast() }
@@ -172,8 +202,9 @@ class TranslationViewModel: ObservableObject {
         do {
             history = try JSONDecoder().decode([TranslationResult].self, from: data)
         } catch {
-            print("❌ 加载失败，清除旧数据")
+            print("❌ 数据格式已升级，清除旧数据")
             UserDefaults.standard.removeObject(forKey: historyKey)
+            history = []
         }
     }
     
