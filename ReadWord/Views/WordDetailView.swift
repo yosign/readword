@@ -12,6 +12,7 @@ struct WordDetailView: View {
     @Environment(\.dismiss) var dismiss
     let word: WordItem
     let ttsService: TTSService
+    @State private var currentPlayingText: String? = nil // 跟踪当前正在播放的文本
     
     var body: some View {
         NavigationStack {
@@ -37,6 +38,12 @@ struct WordDetailView: View {
             }
             .background(Color.white)
             .navigationBarTitleDisplayMode(.inline)
+            .onChange(of: ttsService.isSpeaking) { _, isSpeaking in
+                // 当播放结束时，清除当前播放文本
+                if !isSpeaking {
+                    currentPlayingText = nil
+                }
+            }
             .toolbar {
                 // 左上角：关闭按钮（X 图标）
                 ToolbarItem(placement: .topBarLeading) {
@@ -83,6 +90,7 @@ struct WordDetailView: View {
             
             // 播放按钮
             Button {
+                currentPlayingText = word.word
                 ttsService.speak(word.word)
             } label: {
                 ZStack {
@@ -132,10 +140,34 @@ struct WordDetailView: View {
                         .lineSpacing(4)
                         .contentShape(Rectangle())
                         .onTapGesture {
+                            currentPlayingText = sentence
                             ttsService.speak(sentence)
                         }
                     
                     Spacer()
+                    
+                    // 播放图标（小喇叭）
+                    Button {
+                        currentPlayingText = sentence
+                        ttsService.speak(sentence)
+                    } label: {
+                        Group {
+                            if currentPlayingText == sentence && ttsService.isSpeaking {
+                                // 播放时显示波形动画
+                                Image(systemName: "waveform")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .symbolEffect(.variableColor.iterative.reversing, options: .repeating)
+                                    .foregroundStyle(.orange)
+                            } else {
+                                // 未播放时显示静态喇叭
+                                Image(systemName: "speaker.wave.2.fill")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundStyle(.gray.opacity(0.6))
+                            }
+                        }
+                        .frame(width: 20, height: 20)
+                    }
+                    .buttonStyle(.plain)
                 }
                 .padding(.vertical, 6)
             }
@@ -165,23 +197,52 @@ struct WordDetailView: View {
                                 .padding(.horizontal, 4)
                             
                             // 对话气泡（点击从该行开始播放到结束）
-                            Text(line.text)
-                                .font(.system(size: 16))
-                                .foregroundStyle(.white)
-                                .lineSpacing(4)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 12)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                        .fill(line.speaker == "A" ? Color.orange : Color.blue)
-                                )
-                                .contentShape(Rectangle())
-                                .onTapGesture {
+                            HStack(alignment: .center, spacing: 8) {
+                                Text(line.text)
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(.white)
+                                    .lineSpacing(4)
+                                
+                                // 播放图标（小喇叭）
+                                Button {
                                     // 从点击的这一行开始，播放到对话结束
+                                    currentPlayingText = line.text
                                     let dialogueTexts = word.dialogue.map { $0.text }
                                     let dialogueSpeakers = word.dialogue.map { $0.speaker }
                                     ttsService.speakSequentially(dialogueTexts, from: index, speakers: dialogueSpeakers)
+                                } label: {
+                                    Group {
+                                        if currentPlayingText == line.text && ttsService.isSpeaking {
+                                            // 播放时显示波形动画
+                                            Image(systemName: "waveform")
+                                                .font(.system(size: 12, weight: .medium))
+                                                .symbolEffect(.variableColor.iterative.reversing, options: .repeating)
+                                                .foregroundStyle(.white.opacity(0.9))
+                                        } else {
+                                            // 未播放时显示静态喇叭
+                                            Image(systemName: "speaker.wave.2.fill")
+                                                .font(.system(size: 12, weight: .medium))
+                                                .foregroundStyle(.white.opacity(0.7))
+                                        }
+                                    }
+                                    .frame(width: 16, height: 16)
                                 }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .fill(line.speaker == "A" ? Color.orange : Color.blue)
+                            )
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                // 从点击的这一行开始，播放到对话结束
+                                currentPlayingText = line.text
+                                let dialogueTexts = word.dialogue.map { $0.text }
+                                let dialogueSpeakers = word.dialogue.map { $0.speaker }
+                                ttsService.speakSequentially(dialogueTexts, from: index, speakers: dialogueSpeakers)
+                            }
                         }
                         
                         if line.speaker == "A" {

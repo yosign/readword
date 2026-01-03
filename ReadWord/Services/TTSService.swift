@@ -109,8 +109,11 @@ class TTSService: NSObject, ObservableObject {
         
         // 如果文本为空，不执行朗读
         guard !cleanedText.isEmpty else {
+            print("⚠️ [TTS] 文本为空，跳过播放")
             return
         }
+        
+        print("🔊 [TTS] 开始播放: \(cleanedText)")
         
         // 如果正在朗读，先停止
         if synthesizer.isSpeaking {
@@ -118,41 +121,48 @@ class TTSService: NSObject, ObservableObject {
             isSpeaking = false
         }
         
-        // 配置音频会话
-        do {
-            let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.playback, mode: .default, options: [.duckOthers])
-            try audioSession.setActive(true, options: [])
-        } catch {
-            return
+        // 配置音频会话（在主线程执行）
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            do {
+                let audioSession = AVAudioSession.sharedInstance()
+                try audioSession.setCategory(.playback, mode: .default, options: [.duckOthers])
+                try audioSession.setActive(true, options: [])
+                print("✅ [TTS] 音频会话配置成功")
+            } catch {
+                print("❌ [TTS] 音频会话配置失败: \(error.localizedDescription)")
+                // 即使配置失败，也尝试播放（某些情况下仍可能成功）
+            }
+            
+            // 创建语音内容
+            let utterance = AVSpeechUtterance(string: cleanedText)
+            
+            // 根据说话者选择声音
+            if speaker == "B" {
+                // B角色使用男声
+                utterance.voice = self.maleVoice
+            } else {
+                // A角色或默认使用女声
+                utterance.voice = self.femaleVoice
+            }
+            
+            // 设置语速（0.0 - 1.0，默认 0.5）
+            utterance.rate = 0.45
+            
+            // 设置音量（0.0 - 1.0）
+            utterance.volume = 1.0
+            
+            // 设置音调（0.5 - 2.0，默认 1.0）
+            utterance.pitchMultiplier = 1.0
+            
+            // 设置延迟（让音频会话准备好）
+            utterance.preUtteranceDelay = 0.1
+            
+            // 开始朗读（不要在这里设置 isSpeaking，等待 delegate 回调）
+            self.synthesizer.speak(utterance)
+            print("🎤 [TTS] 已调用 synthesizer.speak")
         }
-        
-        // 创建语音内容
-        let utterance = AVSpeechUtterance(string: cleanedText)
-        
-        // 根据说话者选择声音
-        if speaker == "B" {
-            // B角色使用男声
-            utterance.voice = maleVoice
-        } else {
-            // A角色或默认使用女声
-            utterance.voice = femaleVoice
-        }
-        
-        // 设置语速（0.0 - 1.0，默认 0.5）
-        utterance.rate = 0.45
-        
-        // 设置音量（0.0 - 1.0）
-        utterance.volume = 1.0
-        
-        // 设置音调（0.5 - 2.0，默认 1.0）
-        utterance.pitchMultiplier = 1.0
-        
-        // 设置延迟（让音频会话准备好）
-        utterance.preUtteranceDelay = 0.1
-        
-        // 开始朗读（不要在这里设置 isSpeaking，等待 delegate 回调）
-        synthesizer.speak(utterance)
     }
     
     /// 清理文本，移除提示信息

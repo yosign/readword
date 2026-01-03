@@ -453,7 +453,7 @@ struct ContentView: View {
             spacing: 20,
             items: viewModel.allDisplayWords
         ) { word in
-            WordCardScattered(word: word)
+            WordCardScattered(word: word, ttsService: viewModel.ttsService)
         }
     }
     

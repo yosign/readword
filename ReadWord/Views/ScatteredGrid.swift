@@ -63,7 +63,7 @@ struct ScatteredGrid<Content: View, T: Identifiable>: View {
 /// 散布卡片样式的词汇展示（大卡片横滑）
 struct WordCardScattered: View {
     let word: WordItem
-    @StateObject private var ttsService = TTSService()
+    let ttsService: TTSService
     @State private var selectedWord: WordItem?
     
     var body: some View {
@@ -132,42 +132,50 @@ struct WordCardScattered: View {
                             .padding(.horizontal, 20)
                     }
                     
-                    // 6. 播放单词按钮（使用组合手势同时处理点击和拖动）
+                    // 6. 播放单词按钮（使用多层手势处理，确保滑动后仍可点击）
                     ZStack {
                         // 按钮视觉层
-                        Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color.orange, Color.orange.opacity(0.8)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color.orange, Color.orange.opacity(0.8)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
                                 )
-                            )
-                            .shadow(color: .orange.opacity(0.35), radius: 12, x: 0, y: 6)
+                                .shadow(color: .orange.opacity(0.35), radius: 12, x: 0, y: 6)
+                            
+                            Image(systemName: ttsService.isSpeaking ? "pause.fill" : "play.fill")
+                                .font(.system(size: 30, weight: .bold))
+                                .foregroundStyle(.white)
+                                .offset(x: ttsService.isSpeaking ? 0 : 2)
+                        }
+                        .frame(width: 84, height: 84)
+                        .scaleEffect(ttsService.isSpeaking ? 1.05 : 1.0)
+                        .animation(.easeInOut(duration: 0.2), value: ttsService.isSpeaking)
+                        .allowsHitTesting(false) // 视觉层不接收手势
                         
-                        Image(systemName: ttsService.isSpeaking ? "pause.fill" : "play.fill")
-                            .font(.system(size: 30, weight: .bold))
-                            .foregroundStyle(.white)
-                            .offset(x: ttsService.isSpeaking ? 0 : 2)
+                        // 透明覆盖层（完全拦截手势，优先于 TabView）
+                        Circle()
+                            .fill(Color.clear)
+                            .frame(width: 100, height: 100) // 更大的点击区域
+                            .contentShape(Circle())
+                            .allowsHitTesting(true) // 确保可以接收手势
+                            .highPriorityGesture(
+                                // 高优先级手势：处理点击和拖动
+                                DragGesture(minimumDistance: 0)
+                                    .onEnded { value in
+                                        // 计算拖动距离
+                                        let distance = sqrt(pow(value.translation.width, 2) + pow(value.translation.height, 2))
+                                        // 如果拖动距离很小（小于10pt），视为点击
+                                        if distance < 10 {
+                                            ttsService.speak(word.word)
+                                        }
+                                        // 如果拖动距离较大，不触发播放，但已拦截手势，TabView 不会滑动
+                                    }
+                            )
                     }
-                    .frame(width: 84, height: 84)
-                    .scaleEffect(ttsService.isSpeaking ? 1.05 : 1.0)
-                    .animation(.easeInOut(duration: 0.2), value: ttsService.isSpeaking)
-                    .contentShape(Circle())
-                    .highPriorityGesture(
-                        // 高优先级手势：使用 DragGesture 同时处理点击和拖动
-                        // minimumDistance: 0 使得点击也能被识别为拖动
-                        DragGesture(minimumDistance: 0)
-                            .onEnded { value in
-                                // 计算拖动距离
-                                let distance = sqrt(pow(value.translation.width, 2) + pow(value.translation.height, 2))
-                                // 如果拖动距离很小（小于10pt），视为点击
-                                if distance < 10 {
-                                    ttsService.speak(word.word)
-                                }
-                                // 如果拖动距离较大，不触发播放，让 TabView 处理滑动
-                            }
-                    )
                     .padding(.top, 12)
                     
                     Spacer() // 填充剩余空间
@@ -223,6 +231,6 @@ struct WordCardScattered: View {
             )
         ]
     ) { word in
-        WordCardScattered(word: word)
+        WordCardScattered(word: word, ttsService: TTSService())
     }
 }
