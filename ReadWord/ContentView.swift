@@ -19,9 +19,9 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
-                // 1. 纯白背景
-                Color.white
-                    .ignoresSafeArea()
+            // 1. 纯白背景
+            Color.white
+                .ignoresSafeArea()
                 
                 // 2. 主内容区域
                 ZStack {
@@ -36,51 +36,7 @@ struct ContentView: View {
                         // 历史列表页或空状态（淡入淡出动画）
                         if !viewModel.history.isEmpty {
                             // 历史列表页（根据 homeLayoutMode 显示不同布局）
-                            Group {
-                                switch viewModel.homeLayoutMode {
-                                case .waterfall:
-                                    // 瀑布流布局
-                                    ScrollView {
-                                        VStack(spacing: 0) {
-                                            Color.clear.frame(height: 60)
-                                            
-                                            StaggeredGrid(
-                                                columns: 2,
-                                                spacing: 16,
-                                                items: viewModel.allDisplayWords
-                                            ) { word in
-                                                WordCardStaggered(word: word)
-                                                    .onTapGesture {
-                                                        selectedWord = word
-                                                    }
-                                            }
-                                            .padding(.top, 16)
-                                            .padding(.bottom, 280)
-                                        }
-                                    }
-                                    .scrollIndicators(.hidden)
-                                    
-                                case .scattered:
-                                    // 散布卡片布局（大卡片横滑）
-                                    ScatteredGrid(
-                                        spacing: 20,
-                                        items: viewModel.allDisplayWords
-                                    ) { word in
-                                        WordCardScattered(word: word)
-                                    }
-                                    
-                                case .list:
-                                    // 列表布局
-                                    WordListView(items: viewModel.allDisplayWords) { word in
-                                        AnyView(
-                                            WordCardList(word: word)
-                                                .onTapGesture {
-                                                    selectedWord = word
-                                                }
-                                        )
-                                    }
-                                }
-                            }
+                        historyLayoutView
                             .transition(.opacity.combined(with: .scale(scale: 0.95)))
                         } else {
                             // 空状态
@@ -101,260 +57,10 @@ struct ContentView: View {
                 .animation(nil, value: isInputFocused) // 禁用键盘相关动画
                 
                 // 3. 顶部统计栏（浮动在顶部）
-                VStack {
-                    HStack {
-                        // 左侧：布局切换按钮（仅在首页显示）/ 关闭按钮（翻译结果页）
-                        if viewModel.translatedText.isEmpty {
-                            Button {
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                    // 循环切换布局模式
-                                    let allModes = HomeLayoutMode.allCases
-                                    if let currentIndex = allModes.firstIndex(of: viewModel.homeLayoutMode) {
-                                        let nextIndex = (currentIndex + 1) % allModes.count
-                                        viewModel.homeLayoutMode = allModes[nextIndex]
-                                    }
-                                }
-                            } label: {
-                                Image(systemName: viewModel.homeLayoutMode.icon)
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundStyle(.orange)
-                                    .frame(width: 44, height: 44)
-                                    .background(
-                                        Circle()
-                                            .fill(.white.opacity(0.9))
-                                            .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
-                                    )
-                                    .padding(.leading, 16)
-                            }
-                            .transition(.opacity.combined(with: .scale))
-                        } else {
-                            Button {
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                    viewModel.clear()
-                                }
-                            } label: {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundStyle(.gray)
-                                    .padding(.leading, 24)
-                            }
-                            .transition(.opacity.combined(with: .scale))
-                        }
-                        
-                        Spacer()
-                        
-                        // 中间/右侧：已学数量（仅在非翻译结果页显示）
-                        if viewModel.translatedText.isEmpty {
-                            Text("已学: \(viewModel.learnedWordsCount)")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(.orange)
-                                .frame(height: 44)
-                                .padding(.horizontal, 16)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                        .fill(.white.opacity(0.9))
-                                        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
-                                )
-                                .padding(.trailing, 16)
-                                .transition(.opacity.combined(with: .scale))
-                        }
-                        
-                        // 右侧：全屏按钮（仅在翻译结果页显示）
-                        if !viewModel.translatedText.isEmpty, let firstCard = buildCards().first {
-                            Button {
-                                selectedWord = firstCard
-                            } label: {
-                                Image(systemName: "arrow.up.left.and.arrow.down.right")
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundStyle(.orange)
-                                    .padding(.trailing, 24)
-                            }
-                            .transition(.opacity.combined(with: .scale))
-                        }
-                    }
-                    .padding(.top, 8)
-                    .padding(.bottom, 12)
-                    .animation(.spring(response: 0.3, dampingFraction: 0.8), value: viewModel.translatedText.isEmpty)
-                    .animation(nil, value: isInputFocused) // 禁用键盘相关动画
-                    .background(
-                        Rectangle()
-                            .fill(.ultraThinMaterial)
-                            .mask(
-                                LinearGradient(
-                                    colors: [
-                                        .black,
-                                        .black.opacity(0.8),
-                                        .clear
-                                    ],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
-                            .ignoresSafeArea(edges: .top)
-                    )
-                    Spacer()
-                }
+                topBarView
                 
                 // 4. 底部输入区域（浮动在底部）
-                VStack(spacing: 12) {
-                    // 仿真进度条
-                    if viewModel.isTranslating {
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                Capsule()
-                                    .fill(Color.gray.opacity(0.1))
-                                    .frame(height: 4)
-                                
-                                Capsule()
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [.orange, .orange.opacity(0.6)],
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        )
-                                    )
-                                    .frame(width: geo.size.width * viewModel.translationProgress, height: 4)
-                            }
-                        }
-                        .frame(height: 4)
-                        .padding(.horizontal, 40)
-                        .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .bottom)))
-                    }
-                    
-                    // 输入框
-                    HStack(spacing: 12) {
-                        TextField("", text: $viewModel.inputText, prompt: Text("输入中文...").foregroundColor(.gray))
-                            .font(.system(size: 18))
-                            .foregroundStyle(.black)
-                            .tint(.black) // 光标颜色设置为黑色
-                            .focused($isInputFocused)
-                            .submitLabel(.go)
-                            .onSubmit {
-                                Task { await viewModel.translate() }
-                            }
-                            .onChange(of: isInputFocused) { _, isFocused in
-                                // 延迟执行，避免阻塞键盘动画
-                                if isFocused {
-                                    Task { @MainActor in
-                                        try? await Task.sleep(nanoseconds: 100_000_000) // 0.1秒延迟
-                                        viewModel.inputText = ""
-                                    }
-                                }
-                            }
-                        
-                        // 右侧按钮区域（使用 Group 减少视图重建）
-                        Group {
-                            if isInputFocused {
-                                // 键盘弹出时显示收起键盘按钮
-                                Button {
-                                    isInputFocused = false
-                                } label: {
-                                    Image(systemName: "keyboard.chevron.compact.down")
-                                        .font(.system(size: 24))
-                                        .foregroundStyle(.gray)
-                                }
-                            } else if viewModel.isTranslating {
-                                ProgressView()
-                                    .tint(.orange)
-                            } else if !viewModel.inputText.isEmpty {
-                                Button {
-                                    isInputFocused = false
-                                    Task { await viewModel.translate() }
-                                } label: {
-                                    Image(systemName: "arrow.right.circle.fill")
-                                        .font(.system(size: 32))
-                                        .foregroundStyle(.orange)
-                                }
-                            }
-                        }
-                        .animation(nil, value: isInputFocused) // 禁用按钮切换动画
-                    }
-                    .padding(.horizontal, 20)
-                    .frame(height: 60)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(.white.opacity(0.98)) // 略微透明
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .stroke(Color.gray.opacity(0.15), lineWidth: 1) // 更淡的边框
-                            )
-                            .shadow(color: .black.opacity(0.04), radius: 12, x: 0, y: 4) // 更柔和的阴影
-                    )
-                    .padding(.horizontal, 24)
-                    
-                    // 历史记录快捷按钮（只在没有翻译结果时显示）
-                    if !viewModel.history.isEmpty && viewModel.translatedText.isEmpty {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 12) {
-                                ForEach(viewModel.history.prefix(5)) { record in
-                                    Button {
-                                        viewModel.inputText = record.sourceText
-                                        Task { await viewModel.translate() }
-                                    } label: {
-                                        HStack(spacing: 8) {
-                                            // 英文单词
-                                            Text(record.mainWord.word)
-                                                .font(.system(size: 16, weight: .semibold))
-                                                .foregroundStyle(.black)
-                                            
-                                            // 分隔符
-                                            Text("·")
-                                                .font(.system(size: 14))
-                                                .foregroundStyle(.gray.opacity(0.4))
-                                            
-                                            // 中文翻译
-                                            Text(record.sourceText)
-                                                .font(.system(size: 14))
-                                                .foregroundStyle(.gray)
-                                        }
-                                        .padding(.horizontal, 18)
-                                        .padding(.vertical, 14)
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                                .fill(.white.opacity(0.95)) // 略微透明，融入背景
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                                        .stroke(Color.gray.opacity(0.15), lineWidth: 1) // 更淡的边框
-                                                )
-                                                // 移除阴影，避免被毛玻璃切割
-                                        )
-                                    }
-                                }
-                            }
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 4)
-                        }
-                        .clipShape(Rectangle())
-                    }
-                }
-                .padding(.bottom, 16)
-                .padding(.top, 30) // 增加顶部内边距，让毛玻璃区域向上延伸
-                .frame(maxWidth: .infinity) // 确保宽度充满
-                .background(
-                    Rectangle()
-                        .fill(.ultraThinMaterial)
-                        .mask(
-                            LinearGradient(
-                                colors: [
-                                    .clear,
-                                    .clear,
-                                    .black.opacity(0.2),
-                                    .black.opacity(0.5),
-                                    .black.opacity(0.8),
-                                    .black,
-                                    .black,
-                                    .black  // 底部保持100%不透明
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                        .ignoresSafeArea()
-                )
-            }
-            .contentShape(Rectangle())
-            .onTapGesture {
-                isInputFocused = false
+                bottomInputView
             }
             .contentShape(Rectangle())
             .onTapGesture {
@@ -364,7 +70,7 @@ struct ContentView: View {
                 WordDetailView(word: word, ttsService: viewModel.ttsService)
                     .presentationDragIndicator(.visible)
                     .presentationCornerRadius(20)
-            }
+        }
         .errorAlert(isPresented: $viewModel.showError, message: viewModel.errorMessage)
         .sheet(isPresented: $viewModel.showCamera) {
             CameraView { image in
@@ -381,7 +87,7 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(.light)
-        }
+    }
     }
     
     // MARK: - 翻译结果视图（横滑卡片）
@@ -400,7 +106,7 @@ struct ContentView: View {
                         onSentenceTap: {
                             if let firstSentence = word.sentences.first {
                                 viewModel.ttsService.speak(firstSentence)
-                            }
+    }
                         },
                         onDetailTap: {
                             selectedWord = word
@@ -453,9 +159,9 @@ struct ContentView: View {
             }
             
             Spacer()
-        }
     }
-    
+}
+
     // MARK: - 构建卡片数据
     
     private func buildCards() -> [WordItem] {
@@ -463,6 +169,342 @@ struct ContentView: View {
             return []
         }
         return latestResult.allWords
+    }
+    
+    // MARK: - 顶部栏视图
+    
+    private var topBarView: some View {
+        VStack {
+            HStack {
+                topBarLeftButton
+                Spacer()
+                topBarCenterView
+                topBarRightButton
+            }
+            .padding(.top, 8)
+            .padding(.bottom, 12)
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: viewModel.translatedText.isEmpty)
+            .animation(nil, value: isInputFocused)
+            .background(topBarBackground)
+            Spacer()
+        }
+    }
+    
+    @ViewBuilder
+    private var topBarLeftButton: some View {
+        if viewModel.translatedText.isEmpty {
+            Button {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    let allModes = HomeLayoutMode.allCases
+                    if let currentIndex = allModes.firstIndex(of: viewModel.homeLayoutMode) {
+                        let nextIndex = (currentIndex + 1) % allModes.count
+                        viewModel.homeLayoutMode = allModes[nextIndex]
+                    }
+                }
+            } label: {
+                Image(systemName: viewModel.homeLayoutMode.icon)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.orange)
+                    .frame(width: 44, height: 44)
+                    .background(
+                        Circle()
+                            .fill(.white.opacity(0.9))
+                            .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
+                    )
+                    .padding(.leading, 16)
+            }
+            .transition(.opacity.combined(with: .scale))
+        } else {
+            Button {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    viewModel.clear()
+                }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.gray)
+                    .padding(.leading, 24)
+            }
+            .transition(.opacity.combined(with: .scale))
+        }
+    }
+    
+    @ViewBuilder
+    private var topBarCenterView: some View {
+        if viewModel.translatedText.isEmpty {
+            Text("已学: \(viewModel.learnedWordsCount)")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.orange)
+                .frame(height: 44)
+                .padding(.horizontal, 16)
+                .background(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .fill(.white.opacity(0.9))
+                        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
+                )
+                .padding(.trailing, 16)
+                .transition(.opacity.combined(with: .scale))
+        }
+    }
+    
+    @ViewBuilder
+    private var topBarRightButton: some View {
+        if !viewModel.translatedText.isEmpty, let firstCard = buildCards().first {
+            Button {
+                selectedWord = firstCard
+            } label: {
+                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.orange)
+                    .padding(.trailing, 24)
+            }
+            .transition(.opacity.combined(with: .scale))
+        }
+    }
+    
+    private var topBarBackground: some View {
+        Rectangle()
+            .fill(.ultraThinMaterial)
+            .mask(
+                LinearGradient(
+                    colors: [.black, .black.opacity(0.8), .clear],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .ignoresSafeArea(edges: .top)
+    }
+    
+    // MARK: - 底部输入视图
+    
+    private var bottomInputView: some View {
+        VStack(spacing: 12) {
+            progressBarView
+            inputFieldView
+            historyButtonsView
+        }
+        .padding(.bottom, 16)
+        .padding(.top, 30)
+        .frame(maxWidth: .infinity)
+        .background(bottomInputBackground)
+    }
+    
+    @ViewBuilder
+    private var progressBarView: some View {
+        if viewModel.isTranslating {
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.gray.opacity(0.1))
+                        .frame(height: 4)
+                    
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [.orange, .orange.opacity(0.6)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: geo.size.width * viewModel.translationProgress, height: 4)
+                }
+            }
+            .frame(height: 4)
+            .padding(.horizontal, 40)
+            .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .bottom)))
+        }
+    }
+    
+    private var inputFieldView: some View {
+        HStack(spacing: 12) {
+            TextField("", text: $viewModel.inputText, prompt: Text("输入中文...").foregroundColor(.gray))
+                .font(.system(size: 18))
+                .foregroundStyle(.black)
+                .tint(.black)
+                .focused($isInputFocused)
+                .submitLabel(.go)
+                .onSubmit {
+                    Task { await viewModel.translate() }
+                }
+                .onChange(of: isInputFocused) { _, isFocused in
+                    if isFocused {
+                        Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 100_000_000)
+                            viewModel.inputText = ""
+                        }
+                    }
+                }
+            
+            inputFieldButton
+                .animation(nil, value: isInputFocused)
+        }
+        .padding(.horizontal, 20)
+        .frame(height: 60)
+        .background(inputFieldBackground)
+        .padding(.horizontal, 24)
+    }
+    
+    @ViewBuilder
+    private var inputFieldButton: some View {
+        if isInputFocused {
+            Button {
+                isInputFocused = false
+            } label: {
+                Image(systemName: "keyboard.chevron.compact.down")
+                    .font(.system(size: 24))
+                    .foregroundStyle(.gray)
+            }
+        } else if viewModel.isTranslating {
+            ProgressView()
+                .tint(.orange)
+        } else if !viewModel.inputText.isEmpty {
+            Button {
+                isInputFocused = false
+                Task { await viewModel.translate() }
+            } label: {
+                Image(systemName: "arrow.right.circle.fill")
+                    .font(.system(size: 32))
+                    .foregroundStyle(.orange)
+            }
+        }
+    }
+    
+    private var inputFieldBackground: some View {
+        RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .fill(.white.opacity(0.98))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color.gray.opacity(0.15), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.04), radius: 12, x: 0, y: 4)
+    }
+    
+    @ViewBuilder
+    private var historyButtonsView: some View {
+        if !viewModel.history.isEmpty && viewModel.translatedText.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(viewModel.history.prefix(5)) { record in
+                        historyButton(for: record)
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.vertical, 4)
+            }
+            .clipShape(Rectangle())
+        }
+    }
+    
+    private var bottomInputBackground: some View {
+        Rectangle()
+            .fill(.ultraThinMaterial)
+            .mask(
+                LinearGradient(
+                    colors: [
+                        .clear, .clear,
+                        .black.opacity(0.2), .black.opacity(0.5),
+                        .black.opacity(0.8), .black, .black, .black
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .ignoresSafeArea()
+    }
+    
+    // MARK: - 历史布局视图
+    
+    @ViewBuilder
+    private var historyLayoutView: some View {
+        switch viewModel.homeLayoutMode {
+        case .waterfall:
+            waterfallLayoutView
+        case .scattered:
+            scatteredLayoutView
+        case .list:
+            listLayoutView
+        }
+    }
+    
+    private var waterfallLayoutView: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                Color.clear.frame(height: 60)
+                
+                StaggeredGrid(
+                    columns: 2,
+                    spacing: 16,
+                    items: viewModel.allDisplayWords
+                ) { word in
+                    WordCardStaggered(word: word)
+                        .onTapGesture {
+                            selectedWord = word
+                        }
+                }
+                .padding(.top, 16)
+                .padding(.bottom, 280)
+            }
+        }
+        .scrollIndicators(.hidden)
+    }
+    
+    private var scatteredLayoutView: some View {
+        ScatteredGrid(
+            spacing: 20,
+            items: viewModel.allDisplayWords
+        ) { word in
+            WordCardScattered(word: word)
+        }
+    }
+    
+    private var listLayoutView: some View {
+        WordListView(items: viewModel.allDisplayWords) { word in
+            AnyView(
+                WordCardList(word: word)
+                    .onTapGesture {
+                        selectedWord = word
+                    }
+            )
+        }
+    }
+    
+    // MARK: - 历史记录按钮
+    
+    @ViewBuilder
+    private func historyButton(for record: TranslationResult) -> some View {
+        if let mainWord = record.mainWord {
+            Button {
+                viewModel.inputText = record.sourceText
+                Task { await viewModel.translate() }
+            } label: {
+                HStack(spacing: 8) {
+                    // 英文单词
+                    Text(mainWord.word)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.black)
+                    
+                    // 分隔符
+                    Text("·")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.gray.opacity(0.4))
+                    
+                    // 中文翻译
+                    Text(record.sourceText)
+                        .font(.system(size: 14))
+                        .foregroundStyle(.gray)
+                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(.white.opacity(0.95))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(Color.gray.opacity(0.15), lineWidth: 1)
+                        )
+                )
+            }
+        }
     }
 }
 
@@ -493,7 +535,7 @@ struct TranslationResultCard: View {
                 // 2. 英文单词
                 Text(word.word.capitalized)
                     .font(.system(size: 42, weight: .black, design: .rounded))
-                    .foregroundStyle(.black)
+                .foregroundStyle(.black)
                     .onTapGesture {
                         if !isInputFocused {
                             onDetailTap()
@@ -501,11 +543,11 @@ struct TranslationResultCard: View {
                     }
                 
                 // 3. 发音信息
-                HStack(spacing: 12) {
+            HStack(spacing: 12) {
                     Text(word.pronunciation.ipa)
                         .font(.system(size: 16, design: .serif))
                         .foregroundStyle(.gray)
-                    
+                
                     Text(word.pronunciation.hint)
                         .font(.system(size: 16, design: .serif))
                         .foregroundStyle(.gray)
@@ -514,70 +556,70 @@ struct TranslationResultCard: View {
                 .onTapGesture {
                     if !isInputFocused {
                         onDetailTap()
-                    }
                 }
-                
-                // 4. 中文翻译
+            }
+            
+            // 4. 中文翻译
                 Text(word.cn)
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(.gray.opacity(0.8))
+                .foregroundStyle(.gray.opacity(0.8))
                     .onTapGesture {
                         if !isInputFocused {
                             onDetailTap()
                         }
                     }
-                
+            
                 // 5. 第一个例句（点击句子即可播放）
                 if !isInputFocused, let firstSentence = word.sentences.first {
                     Text(firstSentence)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.black.opacity(0.7))
-                        .multilineTextAlignment(.center)
-                        .lineLimit(2)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.black.opacity(0.7))
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
                         .frame(maxWidth: .infinity)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(Color.orange.opacity(0.05))
-                        )
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.orange.opacity(0.05))
+                    )
                         .contentShape(Rectangle())
                         .onTapGesture {
                             onSentenceTap()
-                        }
-                        .padding(.top, 8)
-                        .padding(.horizontal, 20)
                 }
-                
+                .padding(.top, 8)
+                .padding(.horizontal, 20)
+            }
+            
                 // 6. 播放单词按钮
-                if !isInputFocused {
-                    Button(action: onPlayTap) {
-                        ZStack {
-                            Circle()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [Color.orange, Color.orange.opacity(0.8)],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
+            if !isInputFocused {
+                Button(action: onPlayTap) {
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.orange, Color.orange.opacity(0.8)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
                                 )
-                                .shadow(color: .orange.opacity(0.35), radius: 12, x: 0, y: 6)
-                            
-                            Image(systemName: isSpeaking ? "pause.fill" : "play.fill")
-                                .font(.system(size: 30, weight: .bold))
-                                .foregroundStyle(.white)
+                            )
+                            .shadow(color: .orange.opacity(0.35), radius: 12, x: 0, y: 6)
+                        
+                        Image(systemName: isSpeaking ? "pause.fill" : "play.fill")
+                            .font(.system(size: 30, weight: .bold))
+                            .foregroundStyle(.white)
                                 .offset(x: isSpeaking ? 0 : 2)
                         }
                         .frame(width: 84, height: 84)
                         .contentShape(Circle())
                     }
                     .buttonStyle(.plain)
-                    .scaleEffect(isSpeaking ? 1.05 : 1.0)
-                    .animation(.easeInOut(duration: 0.2), value: isSpeaking)
-                    .padding(.top, 12)
-                }
+                .scaleEffect(isSpeaking ? 1.05 : 1.0)
+                .animation(.easeInOut(duration: 0.2), value: isSpeaking)
+                .padding(.top, 12)
             }
-            .padding(.horizontal, 24)
+        }
+        .padding(.horizontal, 24)
             .padding(.vertical, 20)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }

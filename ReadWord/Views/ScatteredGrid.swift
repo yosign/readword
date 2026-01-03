@@ -132,44 +132,42 @@ struct WordCardScattered: View {
                             .padding(.horizontal, 20)
                     }
                     
-                    // 6. 播放单词按钮（在按钮区域禁用 TabView 滑动，确保可点击）
+                    // 6. 播放单词按钮（使用组合手势同时处理点击和拖动）
                     ZStack {
                         // 按钮视觉层
-                        ZStack {
-                            Circle()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [Color.orange, Color.orange.opacity(0.8)],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-                                .shadow(color: .orange.opacity(0.35), radius: 12, x: 0, y: 6)
-                            
-                            Image(systemName: ttsService.isSpeaking ? "pause.fill" : "play.fill")
-                                .font(.system(size: 30, weight: .bold))
-                                .foregroundStyle(.white)
-                                .offset(x: ttsService.isSpeaking ? 0 : 2)
-                        }
-                        .frame(width: 84, height: 84)
-                        .scaleEffect(ttsService.isSpeaking ? 1.05 : 1.0)
-                        .animation(.easeInOut(duration: 0.2), value: ttsService.isSpeaking)
-                        
-                        // 透明覆盖层（拦截手势，优先于 TabView）
                         Circle()
-                            .fill(Color.clear)
-                            .frame(width: 100, height: 100)
-                            .contentShape(Circle())
-                            .onTapGesture {
-                                ttsService.speak(word.word)
-                            }
-                            .simultaneousGesture(
-                                DragGesture(minimumDistance: 0)
-                                    .onChanged { _ in
-                                        // 拦截拖动手势，阻止 TabView 滑动
-                                    }
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.orange, Color.orange.opacity(0.8)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
                             )
+                            .shadow(color: .orange.opacity(0.35), radius: 12, x: 0, y: 6)
+                        
+                        Image(systemName: ttsService.isSpeaking ? "pause.fill" : "play.fill")
+                            .font(.system(size: 30, weight: .bold))
+                            .foregroundStyle(.white)
+                            .offset(x: ttsService.isSpeaking ? 0 : 2)
                     }
+                    .frame(width: 84, height: 84)
+                    .scaleEffect(ttsService.isSpeaking ? 1.05 : 1.0)
+                    .animation(.easeInOut(duration: 0.2), value: ttsService.isSpeaking)
+                    .contentShape(Circle())
+                    .highPriorityGesture(
+                        // 高优先级手势：使用 DragGesture 同时处理点击和拖动
+                        // minimumDistance: 0 使得点击也能被识别为拖动
+                        DragGesture(minimumDistance: 0)
+                            .onEnded { value in
+                                // 计算拖动距离
+                                let distance = sqrt(pow(value.translation.width, 2) + pow(value.translation.height, 2))
+                                // 如果拖动距离很小（小于10pt），视为点击
+                                if distance < 10 {
+                                    ttsService.speak(word.word)
+                                }
+                                // 如果拖动距离较大，不触发播放，让 TabView 处理滑动
+                            }
+                    )
                     .padding(.top, 12)
                     
                     Spacer() // 填充剩余空间

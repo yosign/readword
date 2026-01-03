@@ -69,8 +69,9 @@ class TranslationViewModel: ObservableObject {
         let cleanedInput = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         
         // 🔍 先检查缓存：查找历史记录中是否有相同的词（匹配主词）
-        if let cachedRecord = history.first(where: { $0.sourceText == cleanedInput }) {
-            print("💾 使用缓存数据: \(cachedRecord.mainWord.word)")
+        if let cachedRecord = history.first(where: { $0.sourceText == cleanedInput }),
+           let mainWord = cachedRecord.mainWord {
+            print("💾 使用缓存数据: \(mainWord.word)")
             
             // 使用缓存数据，无需请求接口
             isTranslating = true
@@ -80,11 +81,11 @@ class TranslationViewModel: ObservableObject {
             withAnimation(.easeOut(duration: 0.3)) { translationProgress = 1.0 }
             try? await Task.sleep(nanoseconds: 300_000_000)
             
-            self.translatedText = cachedRecord.mainWord.word
+            self.translatedText = mainWord.word
             self.currentSourceText = cleanedInput
             
             // 预热语音引擎
-            ttsService.prewarm(cachedRecord.mainWord.word)
+            ttsService.prewarm(mainWord.word)
             
             // 将该记录移到最前面（更新使用时间）
             if let index = history.firstIndex(where: { $0.id == cachedRecord.id }) {
@@ -127,13 +128,21 @@ class TranslationViewModel: ObservableObject {
             withAnimation(.spring(response: 0.3)) { translationProgress = 1.0 }
             try? await Task.sleep(nanoseconds: 300_000_000)
             
-            print("✅ 成功获取记录: \(record.mainWord.word)")
+            guard let mainWord = record.mainWord else {
+                errorMessage = "翻译结果无效：缺少主词"
+                showError = true
+                isTranslating = false
+                translationProgress = 0.0
+                return
+            }
             
-            self.translatedText = record.mainWord.word
+            print("✅ 成功获取记录: \(mainWord.word)")
+            
+            self.translatedText = mainWord.word
             self.currentSourceText = cleanedInput
             
             // 核心优化：翻译成功后立即预热语音引擎
-            ttsService.prewarm(record.mainWord.word)
+            ttsService.prewarm(mainWord.word)
             
             history.insert(record, at: 0)
             if history.count > 50 { history.removeLast() }

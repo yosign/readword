@@ -69,7 +69,7 @@ class TTSService: NSObject, ObservableObject {
             
             // 标记为预热状态
             DispatchQueue.main.async {
-                self.isPrewarming = true
+            self.isPrewarming = true
             }
             
             // 预热语音合成器（朗读一个短单词）
@@ -81,7 +81,7 @@ class TTSService: NSObject, ObservableObject {
             utterance.postUtteranceDelay = 0.0
             
             DispatchQueue.main.async {
-                self.synthesizer.speak(utterance)
+            self.synthesizer.speak(utterance)
             }
             
             // 等待预热完成
